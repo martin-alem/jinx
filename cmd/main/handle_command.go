@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"jinx/pkg/util"
 	"log"
 )
@@ -13,7 +12,7 @@ var sslCertificateFile string
 var sslPrivateKeyFile string
 var routingRulesFilePath string
 var hostnameBlacklist string
-var backendServersConfigPath string
+var serverPoolConfigPath string
 var loadBalancingAlgorithm util.LoadBalancerAlgo
 
 var jinxFlags *flag.FlagSet
@@ -27,7 +26,7 @@ func init() {
 	jinxFlags.StringVar(&sslPrivateKeyFile, "key-file", "", "Specifies the file path to the SSL certificate's private key.")
 	jinxFlags.StringVar(&routingRulesFilePath, "route-table", "", "Path to a JSON file defining routing rules for directing incoming requests to specific backend servers.")
 	jinxFlags.StringVar(&hostnameBlacklist, "black-list", "", "Comma-separated list of hostnames to block access to (e.g., google.com, facebook.com).")
-	jinxFlags.StringVar(&backendServersConfigPath, "server-pool-config", "", "Path to a JSON file listing backend servers and their configurations for load balancing.")
+	jinxFlags.StringVar(&serverPoolConfigPath, "server-pool-config", "", "Path to a JSON file listing backend servers and their configurations for load balancing.")
 	jinxFlags.StringVar((*string)(&loadBalancingAlgorithm), "alg", string(util.ROUND_ROBIN), "Specifies the load balancing algorithm to use (e.g., ROUND_ROBIN, LEAST_CONNECTIONS).")
 }
 
@@ -37,21 +36,29 @@ func HandleStart(args []string) {
 		log.Fatal(err)
 	}
 
+	options := make(map[string]string)
+	options["cert-file"] = sslCertificateFile
+	options["key-file"] = sslPrivateKeyFile
+
 	switch serverMode {
 	case util.HTTP_SERVER:
-		fmt.Println("HTTP SERVER")
+		options["website-root-dir"] = websiteRootDirectory
+		HandleHttpServer(options)
 		break
 	case util.REVERSE_PROXY:
-		fmt.Println("Proxy")
+		options["route-table"] = routingRulesFilePath
+		HandleReverseProxyServer(options)
 		break
 	case util.FORWARD_PROXY:
-		fmt.Println("forward")
+		options["black-list"] = hostnameBlacklist
+		HandleForwardProxyServer(options)
 		break
 	case util.LOAD_BALANCER:
-		fmt.Println("load balancer")
+		options["server-pool-config"] = serverPoolConfigPath
+		HandleLoadBalancerServer(options)
 		break
 	case util.FTP_SERVER:
-		fmt.Println("file server")
+		HandleFTPServer(options)
 		break
 	default:
 		log.Fatalf("%s is not a valid server mod option. valid option includes: http, reverse_proxy, forward_proxy, load_balancer, ftp", serverMode)
