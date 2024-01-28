@@ -1,19 +1,35 @@
 package main
 
 import (
-	"jinx/internal/http"
+	"flag"
 	"jinx/pkg/util"
+	"log"
 )
 
 func main() {
+	flag.Parse()
 
-	config := util.JinxHttpServerConfig{
-		Port:    80,
-		LogRoot: "C:\\Users\\alema\\OneDrive\\Documents\\logs",
-		Root:    "C:\\Users\\alema\\OneDrive\\Documents\\Website",
+	if len(flag.Args()) <= 0 {
+		log.Fatal("no command line argument or options where provided")
 	}
 
-	jinxHttpServer := http.NewJinxHttpServer(config)
-	jinxHttpServer.Start()
+	command := flag.Arg(0)
+	commandArgs := flag.Args()[1:]
 
+	switch command {
+	case util.START:
+		HandleStart(commandArgs)
+		break
+	case util.STOP:
+		HandleStop()
+		break
+	case util.RESTART:
+		HandleRestart()
+		break
+	case util.DESTROY:
+		HandleDestroy()
+		break
+	default:
+		log.Fatalf("%s is an invalid or unrecognized command. valid commands are: start, stop, restart and destroy.", command)
+	}
 }

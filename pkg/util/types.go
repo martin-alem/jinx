@@ -1,7 +1,8 @@
 package util
 
 type JinxHttpServerConfig struct {
-	Port    int
-	LogRoot string
-	Root    string
+	IP          string
+	Port        int
+	LogRoot     string
+	WebsiteRoot string
 }

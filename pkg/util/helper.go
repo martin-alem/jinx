@@ -3,6 +3,7 @@ package util
 import (
 	"io/fs"
 	"net"
+	"os"
 	"path/filepath"
 )
 
@@ -128,4 +129,70 @@ func FileExist(dir string, file string) (bool, string) {
 	_ = filepath.WalkDir(dir, walkFunc) // Ignore the error
 
 	return found, abs
+}
+
+// IsDirReadable takes in a directory path and check if it has read permissions.
+//
+// The function uses the `os.ReadDir` function to attempt reading the directory
+// If the directory has read permission, os.ReadDir will be successful
+// The function returns a boolean and error
+//
+// Parameters:
+//   - dirPath: The directory path to check it read permission
+//
+// Returns:
+//   - bool: True if the directory is readable
+//   - error: The error encountered while trying to read the directory
+//
+// Example:
+//
+//		readable, err := IsDirReadable("/my/directory")
+//	 if err != nil {
+//	    log.Println(err)
+//	 }
+//	 readable will be true if directory is readable.
+func IsDirReadable(dirPath string) (readable bool, err error) {
+	// Check read permission by reading the contents of the directory
+	if _, err := os.ReadDir(dirPath); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// IsDirWritable takes in a directory path and check if it has write permissions.
+//
+// The function tries to create a temp file in the directory using `os.Create`
+// If the directory has write permission, os.Create will be successful
+// The function returns a boolean and error
+// The function also cleans up by closing the file and removing the temp file
+//
+// Parameters:
+//   - dirPath: The directory path to check it write permission
+//
+// Returns:
+//   - bool: True if the directory is writable
+//   - error: The error encountered while trying to write to directory
+//
+// Example:
+//
+//		writable, err := IsDirWritable("/my/directory")
+//	 if err != nil {
+//	    log.Println(err)
+//	 }
+//	 writable will be true if directory is writable.
+func IsDirWritable(dirPath string) (writable bool, err error) {
+	// Check write permission by trying to create a temporary file in the directory
+	tempFilePath := filepath.Join(dirPath, ".tmp_permission_check")
+	file, err := os.Create(tempFilePath)
+	if err != nil {
+		return false, err
+	}
+	_ = file.Close()
+
+	// Clean up: remove the temporary file
+	if err := os.Remove(tempFilePath); err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
