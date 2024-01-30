@@ -19,3 +19,5 @@ type JinxResourceResponse struct {
 type ServerMode string
 
 type LoadBalancerAlgo string
+
+type RouteTable map[string]string

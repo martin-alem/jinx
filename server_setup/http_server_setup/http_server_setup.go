@@ -123,12 +123,12 @@ func HTTPServerSetup(options map[string]string) {
 
 	if err != nil && !os.IsExist(err) {
 		_ = os.RemoveAll(constant.BASE)
-		log.Fatalf("unable to create config file for http server: %v", err)
+		log.Fatalf("unable to create config file: %v", err)
 	}
 
 	if writeErr := helper.WriteConfigToJsonFile(configuration, configPath); writeErr != nil {
 		_ = os.RemoveAll(constant.BASE)
-		log.Fatalf("unable to write configuration to file: %v", err)
+		log.Fatalf("unable to write configuration to file: %v", writeErr)
 	}
 
 	portInt, err := strconv.ParseInt(port, 10, 0)

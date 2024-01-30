@@ -218,6 +218,7 @@ func IsDirWritable(dirPath string) (writable bool, err error) {
 // or multiple data types. It abstracts away the manual construction of JSON strings, relying instead on the
 // robust serialization capabilities of the encoding/json package.
 func WriteConfigToJsonFile(config map[string]any, file string) error {
+
 	// Marshal the config map to a JSON-formatted byte slice.
 	jsonData, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
