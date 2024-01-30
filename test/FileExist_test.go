@@ -1,7 +1,7 @@
 package test
 
 import (
-	"jinx/pkg/util"
+	"jinx/pkg/util/helper"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,17 +41,17 @@ func TestFileExistInDir(t *testing.T) {
 		_ = file2.Close()
 	}()
 
-	ok1, _ := util.FileExist(filepath.Join(tempDir, "test"), "file1.txt")
+	ok1, _ := helper.FileExist(filepath.Join(tempDir, "test"), "file1.txt")
 	if !ok1 {
 		t.Errorf("Expected 'file1.txt' to exist, but it does not.")
 	}
 
-	ok2, _ := util.FileExist(filepath.Join(tempDir, "another"), "file2.txt")
+	ok2, _ := helper.FileExist(filepath.Join(tempDir, "another"), "file2.txt")
 	if !ok2 {
 		t.Errorf("Expected 'file2.txt' to exist, but it does not.")
 	}
 
-	ok3, _ := util.FileExist(filepath.Join(tempDir, "another"), "file3.txt")
+	ok3, _ := helper.FileExist(filepath.Join(tempDir, "another"), "file3.txt")
 	if ok3 {
 		t.Errorf("Expected 'file2.txt' not to exist, but it does.")
 	}

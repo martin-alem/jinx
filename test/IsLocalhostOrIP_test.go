@@ -1,7 +1,7 @@
 package test
 
 import (
-	"jinx/pkg/util"
+	"jinx/pkg/util/helper"
 	"testing"
 )
 
@@ -20,7 +20,7 @@ func TestIsLocalHostOrIP(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.input, func(t *testing.T) {
-			result := util.IsLocalhostOrIP(test.input)
+			result := helper.IsLocalhostOrIP(test.input)
 			if result != test.expect {
 				t.Errorf("expected %v got %v", test.expect, result)
 			}

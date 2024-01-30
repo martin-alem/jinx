@@ -1,7 +1,7 @@
 package test
 
 import (
-	"jinx/pkg/util"
+	"jinx/pkg/util/helper"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,12 +28,12 @@ func TestIsDirWritable(t *testing.T) {
 		t.Fatal(mkNotWritableErr)
 	}
 
-	writableDir, _ := util.IsDirWritable(writableDirPath)
+	writableDir, _ := helper.IsDirWritable(writableDirPath)
 	if !writableDir {
 		t.Errorf("expected %v got %v", true, writableDir)
 	}
 
-	notWritableDir, _ := util.IsDirWritable(notWritableDirPath)
+	notWritableDir, _ := helper.IsDirWritable(notWritableDirPath)
 	if notWritableDir {
 		t.Errorf("expected %v got %v", false, notWritableDir)
 	}

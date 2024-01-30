@@ -2,7 +2,8 @@ package main
 
 import (
 	"flag"
-	"jinx/pkg/util"
+	"fmt"
+	"jinx/pkg/util/constant"
 	"log"
 )
 
@@ -17,17 +18,20 @@ func main() {
 	commandArgs := flag.Args()[1:]
 
 	switch command {
-	case util.START:
+	case constant.START:
 		HandleStart(commandArgs)
 		break
-	case util.STOP:
+	case constant.STOP:
 		HandleStop()
 		break
-	case util.RESTART:
+	case constant.RESTART:
 		HandleRestart()
 		break
-	case util.DESTROY:
+	case constant.DESTROY:
 		HandleDestroy()
+		break
+	case constant.VERSION:
+		fmt.Printf("Jinx Version %s", constant.VERSION_NUMBER)
 		break
 	default:
 		log.Fatalf("%s is an invalid or unrecognized command. valid commands are: start, stop, restart and destroy.", command)

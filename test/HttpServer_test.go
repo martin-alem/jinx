@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"io"
 	"jinx/internal/jinx_http"
-	"jinx/pkg/util"
+	"jinx/pkg/util/types"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -19,12 +19,9 @@ const defaultNotFoundContent = "<html><head><title>404</title></head><body>Defau
 const customNotFoundContent = "<html><head><title>404</title></head><body>Custom Page Not Found</body></html>"
 const aboutFileContents = "<html><head><title>About</title></head><body>This is about my website</body></html>"
 
-func CompleteServerSetup(t *testing.T) (handler http.Handler, dir string) {
+func CompleteServerSetup(t *testing.T) (handler http.Handler) {
 
-	tempDir, err := os.MkdirTemp("", "jinx_root")
-	if err != nil {
-		t.Fatal(err)
-	}
+	tempDir := t.TempDir()
 
 	serverRoot := filepath.Join(tempDir, "jinx")
 	if err := os.Mkdir(serverRoot, 0755); err != nil {
@@ -116,7 +113,7 @@ func CompleteServerSetup(t *testing.T) (handler http.Handler, dir string) {
 		t.Fatal(err)
 	}
 
-	config := util.JinxHttpServerConfig{
+	config := types.JinxHttpServerConfig{
 		IP:          "127.0.0.1",
 		Port:        8080,
 		LogRoot:     logRoot,
@@ -125,20 +122,13 @@ func CompleteServerSetup(t *testing.T) (handler http.Handler, dir string) {
 
 	jinx := jinx_http.NewJinxHttpServer(config, serverRoot)
 
-	return jinx, tempDir
+	return jinx
 }
 
-// Installed Server Software Correctly, Server Root Dir Exist But User Has No Websites
-func InCompleteServerSetup(t *testing.T) (handler http.Handler, dir string) {
+// Installed Server SOFTWARE Correctly, Server Root Dir Exist But User Has No Websites
+func InCompleteServerSetup(t *testing.T) (handler http.Handler) {
 
-	tempDir, err := os.MkdirTemp("", "jinx_root")
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	defer func() {
-		_ = os.RemoveAll(tempDir)
-	}()
+	tempDir := t.TempDir()
 
 	serverRoot := filepath.Join(tempDir, "jinx")
 	if err := os.Mkdir(serverRoot, 0755); err != nil {
@@ -179,25 +169,23 @@ func InCompleteServerSetup(t *testing.T) (handler http.Handler, dir string) {
 		t.Fatal(err)
 	}
 
-	config := util.JinxHttpServerConfig{
+	config := types.JinxHttpServerConfig{
 		IP:          "127.0.0.1",
 		Port:        8080,
 		LogRoot:     logRoot,
-		WebsiteRoot: "/random/web/root",
+		WebsiteRoot: "",
 	}
 
 	jinx := jinx_http.NewJinxHttpServer(config, serverRoot)
 
-	return jinx, tempDir
+	return jinx
 
 }
 
 func TestJinxHttpServerWithCompleteSetup(t *testing.T) {
+	t.Parallel()
+	jinx := CompleteServerSetup(t)
 
-	jinx, dir := CompleteServerSetup(t)
-	defer func() {
-		_ = os.RemoveAll(dir)
-	}()
 	server := httptest.NewServer(jinx)
 	defer server.Close()
 
@@ -310,10 +298,7 @@ func TestJinxHttpServerWithCompleteSetup(t *testing.T) {
 }
 
 func TestJinxHttpServerWithInCompleteSetup(t *testing.T) {
-	jinx, dir := InCompleteServerSetup(t)
-	defer func() {
-		_ = os.RemoveAll(dir)
-	}()
+	jinx := InCompleteServerSetup(t)
 
 	server := httptest.NewServer(jinx)
 	defer server.Close()

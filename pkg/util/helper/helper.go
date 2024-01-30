@@ -1,6 +1,7 @@
-package util
+package helper
 
 import (
+	"encoding/json"
 	"io/fs"
 	"net"
 	"os"
@@ -103,7 +104,7 @@ func InList[T any](list []T, element T, predicate func(a T, b T) bool) bool {
 //
 // Example:
 //
-//	exists, path := FileExist("/my/directory", "myfile.txt")
+//	exists, path := FileExist("/my/directory", "my_file.txt")
 //	if exists {
 //	    fmt.Println("File found at:", path)
 //	} else {
@@ -195,4 +196,39 @@ func IsDirWritable(dirPath string) (writable bool, err error) {
 	}
 
 	return true, nil
+}
+
+// WriteConfigToJsonFile serializes a configuration map to a JSON-formatted file using the encoding/json
+// package to handle serialization of complex data types. This ensures that the output is correctly formatted
+// as valid JSON, including proper handling of special characters, nested structures, and arrays. It overwrites
+// an existing file or creates a new one at the specified path to save the JSON content.
+//
+// Parameters:
+//   - config: A map[string]interface{} representing the configuration settings to be serialized. The keys
+//     are string identifiers for configuration parameters, while the values can be any data type
+//     supported by JSON, including nested maps and slices.
+//   - file: The file path where the JSON-formatted configuration will be saved. If the file exists, it will
+//     be overwritten; if not, a new file will be created.
+//
+// Returns:
+//   - An error if any step of the file writing process fails, including file creation, JSON serialization,
+//     or writing to the file. Returns nil if the operation completes successfully.
+//
+// This function is particularly useful for saving complex configurations that include hierarchical settings
+// or multiple data types. It abstracts away the manual construction of JSON strings, relying instead on the
+// robust serialization capabilities of the encoding/json package.
+func WriteConfigToJsonFile(config map[string]any, file string) error {
+	// Marshal the config map to a JSON-formatted byte slice.
+	jsonData, err := json.MarshalIndent(config, "", "    ")
+	if err != nil {
+		return err // Return serialization errors.
+	}
+
+	// Write the JSON data to the specified file.
+	err = os.WriteFile(file, jsonData, 0644)
+	if err != nil {
+		return err // Return file writing errors.
+	}
+
+	return nil // Indicate success.
 }

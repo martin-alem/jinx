@@ -1,7 +1,7 @@
 package test
 
 import (
-	"jinx/pkg/util"
+	"jinx/pkg/util/helper"
 	"os"
 	"path/filepath"
 	"testing"
@@ -28,12 +28,12 @@ func TestIsDirReadability(t *testing.T) {
 		t.Fatal(mkNotReadableErr)
 	}
 
-	readableDir, _ := util.IsDirReadable(readableDirPath)
+	readableDir, _ := helper.IsDirReadable(readableDirPath)
 	if readableDir != true {
 		t.Errorf("expected %v got %v", true, readableDir)
 	}
 
-	notReadableDir, _ := util.IsDirReadable(notReadableDirPath)
+	notReadableDir, _ := helper.IsDirReadable(notReadableDirPath)
 	if notReadableDir != false {
 		t.Errorf("expected %v got %v", false, notReadableDir)
 	}

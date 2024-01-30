@@ -1,7 +1,7 @@
 package test
 
 import (
-	"jinx/pkg/util"
+	"jinx/pkg/util/helper"
 	"strings"
 	"testing"
 )
@@ -58,7 +58,7 @@ func TestInListWithSlice(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.dsp, func(t *testing.T) {
-			result := util.InList[string](test.list, test.element, test.predicate)
+			result := helper.InList[string](test.list, test.element, test.predicate)
 			if result != test.expect {
 				t.Errorf("expected %v got %v", test.expect, result)
 			}
@@ -126,7 +126,7 @@ func TestInListWithStruct(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.dsp, func(t *testing.T) {
-			result := util.InList[S](test.list, test.element, test.predicate)
+			result := helper.InList[S](test.list, test.element, test.predicate)
 			if result != test.expect {
 				t.Errorf("expected %v got %v", test.expect, result)
 			}
