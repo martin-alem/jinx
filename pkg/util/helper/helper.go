@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // IsLocalhostOrIP checks if the provided host name is "localhost" or an IP address in the loopback range.
@@ -232,4 +233,17 @@ func WriteConfigToJsonFile(config map[string]any, file string) error {
 	}
 
 	return nil // Indicate success.
+}
+
+func SingleJoiningSlash(base, path string) string {
+	baseSlash := strings.HasSuffix(base, "/")
+	pathSlash := strings.HasPrefix(path, "/")
+	switch {
+	case baseSlash && pathSlash:
+		return base + path[1:]
+	case !baseSlash && !pathSlash:
+		return base + "/" + path
+	default:
+		return base + path
+	}
 }

@@ -15,11 +15,10 @@ func main() {
 	}
 
 	command := flag.Arg(0)
-	commandArgs := flag.Args()[1:]
 
 	switch command {
 	case constant.START:
-		HandleStart(commandArgs)
+		HandleStart()
 		break
 	case constant.STOP:
 		HandleStop()

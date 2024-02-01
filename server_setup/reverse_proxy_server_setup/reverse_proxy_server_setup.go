@@ -12,17 +12,22 @@ package reverse_proxy_server_setup
 
 import (
 	"encoding/json"
+	"jinx/internal/reverse_proxy"
 	"jinx/pkg/util/constant"
-	"jinx/pkg/util/helper"
 	"jinx/pkg/util/types"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 func ReverseProxyServerSetup(options map[string]string) {
 
-	logRoot := filepath.Join(constant.BASE, constant.LOG_ROOT)
+	//Create a directory for logs
+	logRoot := filepath.Join(constant.BASE, constant.REVERSE_PROXY, constant.LOG_ROOT)
+	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
+		log.Fatalf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
+	}
 
 	port, portOk := options[constant.PORT]
 	if !portOk {
@@ -69,35 +74,22 @@ func ReverseProxyServerSetup(options map[string]string) {
 		log.Fatalf("error occurred while reading route table: %v", err)
 	}
 
-	configuration := map[string]any{
-		constant.IP:           ipAddress,
-		constant.PORT:         port,
-		constant.CERT_FILE:    certFile,
-		constant.KEY_FILE:     keyFile,
-		constant.ROUTE_TABLE:  routeTable,
-		constant.LOG_ROOT_DIR: logRoot,
+	portInt, err := strconv.ParseInt(port, 10, 0)
+	if err != nil {
+		log.Fatalf("%s is not a valid port:", port)
 	}
 
-	configPath := filepath.Join(constant.BASE, constant.CONFIG_FILE)
-	configFileHandle, err := os.OpenFile(configPath, os.O_CREATE|os.O_RDWR, 0644)
-	defer func() {
-		_ = configFileHandle.Close()
-	}()
-
-	if err != nil && !os.IsExist(err) {
-		_ = os.RemoveAll(constant.BASE)
-		log.Fatalf("unable to create config file: %v", err)
+	jinxReversProxyConfig := types.JinxReverseProxyServerConfig{
+		IP:         ipAddress,
+		Port:       int(portInt),
+		LogRoot:    logRoot,
+		RouteTable: routeTable,
+		CertFile:   certFile,
+		KeyFile:    keyFile,
 	}
 
-	if writeErr := helper.WriteConfigToJsonFile(configuration, configPath); writeErr != nil {
-		_ = os.RemoveAll(constant.BASE)
-		log.Fatalf("unable to write configuration to file: %v", writeErr)
-	}
-	//portInt, err := strconv.ParseInt(port, 10, 0)
-	//if err != nil {
-	//	log.Fatalf("%s is not a valid port:", port)
-	//}
-
+	jinx := reverse_proxy.NewJinxReverseProxyServer(jinxReversProxyConfig, filepath.Join(constant.BASE, constant.REVERSE_PROXY))
+	jinx.Start()
 }
 
 // ValidateRouteTablePath verifies the existence and format of the route table file specified by the path.

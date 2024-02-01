@@ -11,6 +11,15 @@ type JinxHttpServerConfig struct {
 	KeyFile     string
 }
 
+type JinxReverseProxyServerConfig struct {
+	IP         string
+	Port       int
+	LogRoot    string
+	RouteTable RouteTable
+	CertFile   string
+	KeyFile    string
+}
+
 type JinxResourceResponse struct {
 	Res      *http.Response
 	Filename string
