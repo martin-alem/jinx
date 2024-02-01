@@ -20,6 +20,13 @@ type JinxReverseProxyServerConfig struct {
 	KeyFile    string
 }
 
+type JinxForwardProxyServerConfig struct {
+	IP        string
+	Port      int
+	LogRoot   string
+	BlackList []string
+}
+
 type JinxResourceResponse struct {
 	Res      *http.Response
 	Filename string
