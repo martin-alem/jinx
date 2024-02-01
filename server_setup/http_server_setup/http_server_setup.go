@@ -24,34 +24,11 @@ import (
 	"sync"
 )
 
-// HTTPServerSetup initializes and starts an HTTP server based on the provided options. This function
-// is responsible for configuring server settings such as IP address, port, SSL certificates, and the
-// web root directory. It also attempts to download and save essential resources for the server's
-// operation, like index and error pages, CSS, and images.
-//
-// Parameters:
-// - options: A map containing configuration options for the server. Expected keys include IP address,
-//   port, certificate file paths (for HTTPS), and the website root directory. Missing optional keys
-//   will be substituted with default values.
-//
-// The function performs several critical setup tasks:
-// 1. Validates the existence and readability of the website root directory.
-// 2. Sets default values for missing configuration options like IP and port.
-// 3. Validates SSL certificate files if HTTPS is enabled.
-// 4. Ensures the creation of default website root and image directories.
-// 5. Downloads and stores predefined resources required for the server to function.
-// 6. Writes the server configuration to a JSON file for later reference.
-// 7. Starts the HTTP server with the specified configuration, handling both HTTP and HTTPS protocols.
-//
-// If any step of the setup process fails, the function will log the error and terminate the application
-// to prevent running in an improperly configured state.
-
 func HTTPServerSetup(options map[string]string) {
-	logRoot := filepath.Join(constant.BASE, constant.LOG_ROOT)
 
 	webRootDir, webRootDirOk := options[constant.WEBSITE_ROOT_DIR]
-	if !webRootDirOk {
-		log.Fatal("website root directory option not specified")
+	if !webRootDirOk || webRootDir == "" {
+		webRootDir = constant.DEFAULT_WEBSITE_ROOT_DIR
 	} else {
 		if readable, readableErr := helper.IsDirReadable(webRootDir); !readable {
 			log.Fatalf("unable to read website directory or does not exit: %s: %v", webRootDir, readableErr)
@@ -83,17 +60,26 @@ func HTTPServerSetup(options map[string]string) {
 	}
 
 	if certFileOk && certFile != "" && keyFileOk && keyFile != "" {
-		port = constant.HTTPS_PORT
+		if !portOk {
+			port = constant.HTTPS_PORT
+		}
 	}
 
-	defaultWebsiteRoot := filepath.Join(constant.BASE, constant.DEFAULT_WEBSITE_ROOT)
-	if mkdirErr := os.Mkdir(defaultWebsiteRoot, 0755); !os.IsExist(mkdirErr) && mkdirErr != nil {
-		log.Fatalf("unable to create default website root. make sure you have the right permissions in %s: %v", constant.BASE, mkdirErr)
+	//Create a directory for logs
+	logRoot := filepath.Join(constant.BASE, constant.HTTP_SERVER, constant.LOG_ROOT)
+	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
+		log.Fatalf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
+	}
+
+	//Create a directory to store default website files
+	defaultWebsiteRoot := filepath.Join(constant.BASE, constant.HTTP_SERVER, constant.DEFAULT_WEBSITE_ROOT)
+	if mkdirErr := os.MkdirAll(defaultWebsiteRoot, 0755); !os.IsExist(mkdirErr) && mkdirErr != nil {
+		log.Fatalf("unable to create default website root. make sure you have the right permissions in %s: %v", defaultWebsiteRoot, mkdirErr)
 	}
 
 	imagesDir := filepath.Join(defaultWebsiteRoot, constant.IMAGE_DIR)
 	if mkdirErr := os.Mkdir(imagesDir, 0755); !os.IsExist(mkdirErr) && mkdirErr != nil {
-		log.Fatalf("unable to create default website image dir. make sure you have the right permissions in %s: %v", defaultWebsiteRoot, mkdirErr)
+		log.Fatalf("unable to create default website image dir. make sure you have the right permissions in %s: %v", imagesDir, mkdirErr)
 	}
 
 	resources := map[string]string{
@@ -106,31 +92,6 @@ func HTTPServerSetup(options map[string]string) {
 
 	FetchServerDefaultWebsite(resources, defaultWebsiteRoot, imagesDir)
 
-	configuration := map[string]any{
-		constant.IP:               ipAddress,
-		constant.PORT:             port,
-		constant.CERT_FILE:        certFile,
-		constant.KEY_FILE:         keyFile,
-		constant.WEBSITE_ROOT_DIR: webRootDir,
-		constant.LOG_ROOT_DIR:     logRoot,
-	}
-
-	configPath := filepath.Join(constant.BASE, constant.CONFIG_FILE)
-	configFileHandle, err := os.OpenFile(configPath, os.O_CREATE|os.O_RDWR, 0644)
-	defer func() {
-		_ = configFileHandle.Close()
-	}()
-
-	if err != nil && !os.IsExist(err) {
-		_ = os.RemoveAll(constant.BASE)
-		log.Fatalf("unable to create config file for http server: %v", err)
-	}
-
-	if writeErr := helper.WriteConfigToJsonFile(configuration, configPath); writeErr != nil {
-		_ = os.RemoveAll(constant.BASE)
-		log.Fatalf("unable to write configuration to file: %v", err)
-	}
-
 	portInt, err := strconv.ParseInt(port, 10, 0)
 	if err != nil {
 		log.Fatalf("%s is not a valid port:", port)
@@ -139,13 +100,13 @@ func HTTPServerSetup(options map[string]string) {
 	jinxHttpConfig := types.JinxHttpServerConfig{
 		IP:          ipAddress,
 		Port:        int(portInt),
-		LogRoot:     filepath.Join(constant.BASE, constant.LOG_ROOT),
+		LogRoot:     logRoot,
 		WebsiteRoot: webRootDir,
 		CertFile:    certFile,
 		KeyFile:     keyFile,
 	}
 
-	jinx := jinx_http.NewJinxHttpServer(jinxHttpConfig, constant.BASE)
+	jinx := jinx_http.NewJinxHttpServer(jinxHttpConfig, filepath.Join(constant.BASE, constant.HTTP_SERVER))
 	jinx.Start()
 }
 

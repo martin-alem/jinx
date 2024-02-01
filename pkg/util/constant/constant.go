@@ -11,7 +11,9 @@ const VERSION_NUMBER = "1.0.0"
 
 const ROOT = "/home/unix-martin"
 const BASE = ROOT + "/jinx"
+const CONFIG_FILE_PATH = BASE + "/" + CONFIG_FILE
 const LOG_ROOT = "logs"
+const DEFAULT_WEBSITE_ROOT_DIR = BASE + "/" + HTTP_SERVER + "/" + DEFAULT_WEBSITE_ROOT
 const DEFAULT_IP = "127.0.0.1"
 const CONFIG_FILE = "jinx_config.json"
 
@@ -27,11 +29,11 @@ const JINX_INDEX_FILE = "index.html"
 const JINX_404_FILE = "404.html"
 const JINX_CSS_FILE = "style.css"
 
-const HTTP_SERVER types.ServerMode = "http_server"
-const REVERSE_PROXY types.ServerMode = "reverse_proxy_server"
-const FORWARD_PROXY types.ServerMode = "forward_proxy_server"
-const LOAD_BALANCER types.ServerMode = "load_balancing_server"
-const FTP_SERVER types.ServerMode = "ftp_server"
+const HTTP_SERVER string = "http_server"
+const REVERSE_PROXY string = "reverse_proxy_server"
+const FORWARD_PROXY string = "forward_proxy_server"
+const LOAD_BALANCER string = "load_balancing_server"
+const FTP_SERVER string = "ftp_server"
 const VERSION = "version"
 
 // ROUND_ROBIN The simplest form of load balancing, where requests are distributed sequentially to the list of servers in rotation.
@@ -82,6 +84,8 @@ const FTP = "21"
 const MODE = "mode"
 const PORT = "port"
 const IP = "ip"
+const MAX_WORKERS = "max_workers"
+const MAX_WORKER_BUFFER_SIZE = "max_worker_buffer_size"
 const WEBSITE_ROOT_DIR = "website-root-dir"
 const LOG_ROOT_DIR = "log-root"
 const CERT_FILE = "cert-file"

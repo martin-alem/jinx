@@ -1,4 +1,4 @@
-// File: JinxHttpServer.go
+// File: jinx_http_server.go
 // Package: jinx_http
 
 // Program Description:
@@ -107,7 +107,7 @@ func NewJinxHttpServer(config types.JinxHttpServerConfig, serverRoot string) *Ji
 //     allowing the server to finish processing current requests before shutting down.
 //  4. Starts listening for incoming HTTP or HTTPS connections, depending on the configuration. For HTTPS,
 //     it requires paths to the SSL certificate and key files.
-//  5. On receiving a shutdown signal, attempts to gracefully shutdown the server, logging any errors
+//  5. On receiving a shutdown signal, attempts to gracefully shut down the server, logging any errors
 //     encountered during the shutdown process.
 //
 // If the server fails to start or encounters an error during runtime that isn't related to a normal

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // IsLocalhostOrIP checks if the provided host name is "localhost" or an IP address in the loopback range.
@@ -218,6 +219,7 @@ func IsDirWritable(dirPath string) (writable bool, err error) {
 // or multiple data types. It abstracts away the manual construction of JSON strings, relying instead on the
 // robust serialization capabilities of the encoding/json package.
 func WriteConfigToJsonFile(config map[string]any, file string) error {
+
 	// Marshal the config map to a JSON-formatted byte slice.
 	jsonData, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
@@ -231,4 +233,17 @@ func WriteConfigToJsonFile(config map[string]any, file string) error {
 	}
 
 	return nil // Indicate success.
+}
+
+func SingleJoiningSlash(base, path string) string {
+	baseSlash := strings.HasSuffix(base, "/")
+	pathSlash := strings.HasPrefix(path, "/")
+	switch {
+	case baseSlash && pathSlash:
+		return base + path[1:]
+	case !baseSlash && !pathSlash:
+		return base + "/" + path
+	default:
+		return base + path
+	}
 }
