@@ -26,14 +26,13 @@ import (
 )
 
 type JinxLoadBalancingServer struct {
-	config         types.JinxLoadBalancingServerConfig
-	errorLogger    *slog.Logger
-	serverLogger   *slog.Logger
-	serverRootDir  string
-	mode           string
-	sslTermination bool
-	currentServer  int
-	mutex          *sync.Mutex
+	config        types.JinxLoadBalancingServerConfig
+	errorLogger   *slog.Logger
+	serverLogger  *slog.Logger
+	serverRootDir string
+	mode          string
+	currentServer int
+	mutex         *sync.Mutex
 }
 
 func NewJinxLoadBalancingServer(config types.JinxLoadBalancingServerConfig, serverRoot string) *JinxLoadBalancingServer {
@@ -52,20 +51,14 @@ func NewJinxLoadBalancingServer(config types.JinxLoadBalancingServerConfig, serv
 		loadBalancerMode = "https"
 	}
 
-	sslTermination := false
-	if loadBalancerMode == "https" && config.SSLTermination == true {
-		sslTermination = true
-	}
-
 	return &JinxLoadBalancingServer{
-		config:         config,
-		errorLogger:    slog.New(slog.NewJSONHandler(errorLogFile, nil)),
-		serverLogger:   slog.New(slog.NewJSONHandler(serverLogFile, nil)),
-		serverRootDir:  serverRoot,
-		mode:           loadBalancerMode,
-		sslTermination: sslTermination,
-		currentServer:  -1,
-		mutex:          &sync.Mutex{},
+		config:        config,
+		errorLogger:   slog.New(slog.NewJSONHandler(errorLogFile, nil)),
+		serverLogger:  slog.New(slog.NewJSONHandler(serverLogFile, nil)),
+		serverRootDir: serverRoot,
+		mode:          loadBalancerMode,
+		currentServer: -1,
+		mutex:         &sync.Mutex{},
 	}
 }
 
@@ -104,12 +97,7 @@ func (jx *JinxLoadBalancingServer) Start() {
 				msg := fmt.Sprintf("error accepting connection: %v", err)
 				jx.errorLogger.Error(msg)
 			}
-			if jx.mode == "https" {
-				go jx.HandleHTTPSMode(conn)
-			} else {
-				go jx.ProxyTCP(conn)
-			}
-
+			go jx.ProxyTCP(conn)
 		}
 	}
 }
@@ -148,10 +136,6 @@ func (jx *JinxLoadBalancingServer) ProxyTCP(conn net.Conn) {
 	wg.Wait()
 	_ = remoteConn.Close() // Close remote connection after data transfer is complete.
 	_ = conn.Close()
-}
-
-func (jx *JinxLoadBalancingServer) HandleHTTPSMode(conn net.Conn) {
-
 }
 
 func (jx *JinxLoadBalancingServer) PickAlgorithm() types.LoadBalancingAlgorithm {

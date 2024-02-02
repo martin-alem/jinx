@@ -2,6 +2,7 @@ package helper
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"net"
 	"os"
@@ -246,4 +247,13 @@ func SingleJoiningSlash(base, path string) string {
 	default:
 		return base + path
 	}
+}
+
+func ValidatePort(port int) (bool, error) {
+	// Check if port is in the valid range (1-65535)
+	if port < 1 || port > 65535 {
+		return false, fmt.Errorf("port must be between 1 and 65535")
+	}
+
+	return true, nil
 }

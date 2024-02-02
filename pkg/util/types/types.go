@@ -33,19 +33,59 @@ type JinxForwardProxyServerConfig struct {
 }
 
 type JinxLoadBalancingServerConfig struct {
-	IP             string
-	Port           int
-	LogRoot        string
-	CertFile       string
-	KeyFile        string
-	ServerPool     []UpStreamServer
-	SSLTermination bool
-	Algorithm      LoadBalancerAlgo
+	IP         string
+	Port       int
+	LogRoot    string
+	CertFile   string
+	KeyFile    string
+	ServerPool []UpStreamServer
+	Algorithm  LoadBalancerAlgo
 }
 
 type JinxResourceResponse struct {
 	Res      *http.Response
 	Filename string
+}
+
+type HttpServerConfig struct {
+	Port           int
+	IP             string
+	CertFile       string
+	KeyFile        string
+	WebsiteRootDir string
+}
+
+type ReverseProxyConfig struct {
+	Port         int
+	IP           string
+	CertFile     string
+	KeyFile      string
+	RoutingTable string
+}
+
+type ForwardProxyConfig struct {
+	Port      int
+	IP        string
+	CertFile  string
+	KeyFile   string
+	BlackList string
+}
+
+type LoadBalancerConfig struct {
+	Port                 int
+	IP                   string
+	CertFile             string
+	KeyFile              string
+	ServerPoolConfigPath string
+	Algo                 LoadBalancerAlgo
+}
+
+type JinxServerConfiguration struct {
+	Mode               ServerMode
+	HttpServerConfig   HttpServerConfig
+	ReverseProxyConfig ReverseProxyConfig
+	ForwardProxyConfig ForwardProxyConfig
+	LoadBalancerConfig LoadBalancerConfig
 }
 
 type LoadBalancingAlgorithm func([]UpStreamServer, int, *sync.Mutex) UpStreamServer
