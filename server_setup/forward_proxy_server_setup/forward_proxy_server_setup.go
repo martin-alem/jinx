@@ -12,40 +12,56 @@ package forward_proxy_server_setup
 
 import (
 	"bufio"
+	"fmt"
 	"jinx/internal/forward_proxy"
 	"jinx/pkg/util/constant"
+	"jinx/pkg/util/helper"
 	"jinx/pkg/util/types"
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
-func ForwardProxyServerSetup(options map[string]string) {
+func ForwardProxyServerSetup(config types.ForwardProxyConfig) {
 
 	//Create a directory for logs
-	logRoot := filepath.Join(constant.BASE, constant.FORWARD_PROXY, constant.LOG_ROOT)
+	logRoot := filepath.Join(constant.BASE, string(constant.FORWARD_PROXY), constant.LOG_ROOT)
 	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
 		log.Fatalf("unable to create a log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
 	}
 
-	port, portOk := options[constant.PORT]
-	if !portOk {
-		port = constant.HTTP_PORT
+	port := config.Port
+	_, validationErr := helper.ValidatePort(port)
+	if validationErr != nil {
+		log.Fatalf(validationErr.Error())
 	}
 
-	ipAddress, ipOk := options[constant.IP]
-	if !ipOk {
+	ipAddress := config.IP
+	if ipAddress == "" {
 		ipAddress = constant.DEFAULT_IP
+	}
+
+	certFile := config.CertFile
+	if certFile != "" {
+		if _, certFileErr := os.Stat(certFile); certFileErr != nil {
+			log.Fatalf("%s: %v", certFile, certFileErr)
+		}
+	}
+
+	keyFile := config.KeyFile
+	if keyFile != "" {
+		if _, keyFileErr := os.Stat(keyFile); keyFileErr != nil {
+			log.Fatalf("%s: %v", keyFile, keyFileErr)
+		}
 	}
 
 	var blackList []string
 	var blackListErr error
 
-	blackListPath, pathOk := options[constant.BLACK_LIST]
-	if pathOk {
-		if validationErr := ValidateBlackListPath(blackListPath); validationErr != nil {
-			log.Fatalf("error while parsing blacklist file: %v", validationErr)
+	blackListPath := config.BlackList
+	if blackListPath == "" {
+		if blackListValidationPathErr := ValidateBlackListPath(blackListPath); blackListValidationPathErr != nil {
+			log.Fatalf("error while parsing blacklist file: %v", blackListValidationPathErr)
 		}
 
 		blackList, blackListErr = LoadBlackList(blackListPath)
@@ -54,20 +70,18 @@ func ForwardProxyServerSetup(options map[string]string) {
 		}
 	}
 
-	portInt, err := strconv.ParseInt(port, 10, 0)
-	if err != nil {
-		log.Fatalf("%s is not a valid port:", port)
-	}
-
 	jinxForwardProxyConfig := types.JinxForwardProxyServerConfig{
 		IP:        ipAddress,
-		Port:      int(portInt),
+		Port:      port,
 		LogRoot:   logRoot,
 		BlackList: blackList,
+		CertFile:  certFile,
+		KeyFile:   keyFile,
 	}
 
-	jinx := forward_proxy.NewJinxForwardProxyServer(jinxForwardProxyConfig, filepath.Join(constant.BASE, constant.FORWARD_PROXY))
+	jinx := forward_proxy.NewJinxForwardProxyServer(jinxForwardProxyConfig, filepath.Join(constant.BASE, string(constant.FORWARD_PROXY)))
 	jinx.Start()
+	fmt.Println("Forward Proxy Started...")
 }
 
 func ValidateBlackListPath(path string) error {

@@ -13,19 +13,23 @@
 package reverse_proxy
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"jinx/pkg/util/helper"
 	"jinx/pkg/util/types"
 	"log"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -145,6 +149,95 @@ func (jx *JinxReverseProxyServer) Start() {
 	}
 }
 
+func (jx *JinxReverseProxyServer) handleHTTPSConnect(w http.ResponseWriter, r *http.Request) {
+	// Hijack the connection
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "HTTP Server does not support hijacking", http.StatusInternalServerError)
+		return
+	}
+
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Connect to the destination server
+	destConn, err := net.Dial("tcp", r.Host)
+	if err != nil {
+		_ = clientConn.Close()
+		return
+	}
+
+	// Send a 200 OK response to client
+	_, _ = clientConn.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+
+	// Stream data between the client and the destination server
+	go transfer(clientConn, destConn)
+	go transfer(destConn, clientConn)
+}
+
+func (jx *JinxReverseProxyServer) handleWebSocketConnect(w http.ResponseWriter, r *http.Request) {
+	// Hijack the connection
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "HTTP Server does not support hijacking", http.StatusInternalServerError)
+		return
+	}
+
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer func(clientConn net.Conn) {
+		_ = clientConn.Close()
+	}(clientConn)
+
+	// Connect to the destination server
+	destConn, err := net.Dial("tcp", r.Host)
+	if err != nil {
+		return
+	}
+	defer func(destConn net.Conn) {
+		_ = destConn.Close()
+	}(destConn)
+
+	// Forward the client's WebSocket upgrade request to the destination server
+	err = r.Write(destConn)
+	if err != nil {
+		http.Error(w, "Failed to send WebSocket upgrade request to the destination server", http.StatusInternalServerError)
+		return
+	}
+
+	// Read the response from the destination server
+	response, err := http.ReadResponse(bufio.NewReader(destConn), r)
+	if err != nil {
+		http.Error(w, "Failed to read WebSocket upgrade response from the destination server", http.StatusInternalServerError)
+		return
+	}
+
+	// Forward the destination server's response back to the client
+	err = response.Write(clientConn)
+	if err != nil {
+		http.Error(w, "Failed to send WebSocket upgrade request to the client", http.StatusInternalServerError)
+		return
+	}
+
+	// At this point, the WebSocket handshake is complete, and we can start relaying messages
+	go transfer(destConn, clientConn)
+	go transfer(clientConn, destConn)
+}
+
+func transfer(dst io.WriteCloser, src io.ReadCloser) {
+	defer func() {
+		_ = dst.Close()
+		_ = src.Close()
+	}()
+	_, _ = io.Copy(dst, src)
+}
+
 func (jx *JinxReverseProxyServer) DetermineUpstreamURL(r *http.Request) (string, error) {
 	path := filepath.Clean(r.URL.Path)
 
@@ -155,7 +248,6 @@ func (jx *JinxReverseProxyServer) DetermineUpstreamURL(r *http.Request) (string,
 	}
 
 	return upStreamUrl, nil
-
 }
 
 func (jx *JinxReverseProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -168,7 +260,21 @@ func (jx *JinxReverseProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// Dispatch the request
+	// Special handling for HTTPS CONNECT requests
+	if r.Method == http.MethodConnect {
+		jx.handleHTTPSConnect(w, r)
+		return
+	}
+
+	upgradeHeader := strings.ToLower(r.Header.Get("Upgrade"))
+	connectionHeader := strings.ToLower(r.Header.Get("Connection"))
+
+	if upgradeHeader == "websocket" && strings.Contains(connectionHeader, "upgrade") {
+		jx.handleWebSocketConnect(w, r)
+		return
+	}
+
+	// Handle HTTP request
 	jx.HandleProxyRequest(w, r, upstreamURL)
 
 }

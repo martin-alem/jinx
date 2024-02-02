@@ -11,6 +11,7 @@
 package http_server_setup
 
 import (
+	"fmt"
 	"io"
 	"jinx/internal/jinx_http"
 	"jinx/pkg/util/constant"
@@ -20,59 +21,53 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"sync"
 )
 
-func HTTPServerSetup(options map[string]string) {
+func HTTPServerSetup(config types.HttpServerConfig) {
 
-	webRootDir, webRootDirOk := options[constant.WEBSITE_ROOT_DIR]
-	if !webRootDirOk || webRootDir == "" {
-		webRootDir = constant.DEFAULT_WEBSITE_ROOT_DIR
+	webRootDir := config.WebsiteRootDir
+	if webRootDir == "" {
+		webRootDir = string(constant.DEFAULT_WEBSITE_ROOT_DIR)
 	} else {
 		if readable, readableErr := helper.IsDirReadable(webRootDir); !readable {
 			log.Fatalf("unable to read website directory or does not exit: %s: %v", webRootDir, readableErr)
 		}
 	}
 
-	port, portOk := options[constant.PORT]
-	if !portOk {
-		port = constant.HTTP_PORT
+	port := config.Port
+	_, validationErr := helper.ValidatePort(port)
+	if validationErr != nil {
+		log.Fatalf(validationErr.Error())
 	}
 
-	ipAddress, ipOk := options[constant.IP]
-	if !ipOk {
+	ipAddress := config.IP
+	if ipAddress == "" {
 		ipAddress = constant.DEFAULT_IP
 	}
 
-	certFile, certFileOk := options[constant.CERT_FILE]
-	if certFileOk && certFile != "" {
+	certFile := config.CertFile
+	if certFile != "" {
 		if _, certFileErr := os.Stat(certFile); certFileErr != nil {
 			log.Fatalf("%s: %v", certFile, certFileErr)
 		}
 	}
 
-	keyFile, keyFileOk := options[constant.KEY_FILE]
-	if keyFileOk && keyFile != "" {
+	keyFile := config.KeyFile
+	if keyFile != "" {
 		if _, keyFileErr := os.Stat(keyFile); keyFileErr != nil {
 			log.Fatalf("%s: %v", keyFile, keyFileErr)
 		}
 	}
 
-	if certFileOk && certFile != "" && keyFileOk && keyFile != "" {
-		if !portOk {
-			port = constant.HTTPS_PORT
-		}
-	}
-
 	//Create a directory for logs
-	logRoot := filepath.Join(constant.BASE, constant.HTTP_SERVER, constant.LOG_ROOT)
+	logRoot := filepath.Join(constant.BASE, string(constant.HTTP_SERVER), constant.LOG_ROOT)
 	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
 		log.Fatalf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
 	}
 
 	//Create a directory to store default website files
-	defaultWebsiteRoot := filepath.Join(constant.BASE, constant.HTTP_SERVER, constant.DEFAULT_WEBSITE_ROOT)
+	defaultWebsiteRoot := filepath.Join(constant.BASE, string(constant.HTTP_SERVER), constant.DEFAULT_WEBSITE_ROOT)
 	if mkdirErr := os.MkdirAll(defaultWebsiteRoot, 0755); !os.IsExist(mkdirErr) && mkdirErr != nil {
 		log.Fatalf("unable to create default website root. make sure you have the right permissions in %s: %v", defaultWebsiteRoot, mkdirErr)
 	}
@@ -92,22 +87,18 @@ func HTTPServerSetup(options map[string]string) {
 
 	FetchServerDefaultWebsite(resources, defaultWebsiteRoot, imagesDir)
 
-	portInt, err := strconv.ParseInt(port, 10, 0)
-	if err != nil {
-		log.Fatalf("%s is not a valid port:", port)
-	}
-
 	jinxHttpConfig := types.JinxHttpServerConfig{
 		IP:          ipAddress,
-		Port:        int(portInt),
+		Port:        port,
 		LogRoot:     logRoot,
 		WebsiteRoot: webRootDir,
 		CertFile:    certFile,
 		KeyFile:     keyFile,
 	}
 
-	jinx := jinx_http.NewJinxHttpServer(jinxHttpConfig, filepath.Join(constant.BASE, constant.HTTP_SERVER))
+	jinx := jinx_http.NewJinxHttpServer(jinxHttpConfig, filepath.Join(constant.BASE, string(constant.HTTP_SERVER)))
 	jinx.Start()
+	fmt.Println("HTTP Server Started...")
 }
 
 // FetchServerDefaultWebsite concurrently downloads a set of predefined resources from the web

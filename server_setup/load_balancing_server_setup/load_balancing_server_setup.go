@@ -2,61 +2,61 @@ package load_balancing_server_setup
 
 import (
 	"encoding/json"
+	"fmt"
 	"jinx/internal/load_balancer"
 	"jinx/pkg/util/constant"
+	"jinx/pkg/util/helper"
 	"jinx/pkg/util/types"
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
-func LoadBalancingServerSetup(options map[string]string) {
+func LoadBalancingServerSetup(config types.LoadBalancerConfig) {
 
 	//Create a directory for logs
-	logRoot := filepath.Join(constant.BASE, constant.LOAD_BALANCER, constant.LOG_ROOT)
+	logRoot := filepath.Join(constant.BASE, string(constant.LOAD_BALANCER), constant.LOG_ROOT)
 	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
 		log.Fatalf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
 	}
 
-	port, portOk := options[constant.PORT]
-	if !portOk {
-		port = constant.HTTP_PORT
+	port := config.Port
+	_, validationErr := helper.ValidatePort(port)
+	if validationErr != nil {
+		log.Fatalf(validationErr.Error())
 	}
 
-	ipAddress, ipOk := options[constant.IP]
-	if !ipOk {
+	ipAddress := config.IP
+	if ipAddress == "" {
 		ipAddress = constant.DEFAULT_IP
 	}
 
-	certFile, certFileOk := options[constant.CERT_FILE]
-	if certFileOk && certFile != "" {
+	algorithm := config.Algo
+	if algorithm == "" {
+		algorithm = constant.ROUND_ROBIN
+	}
+
+	certFile := config.CertFile
+	if certFile != "" {
 		if _, certFileErr := os.Stat(certFile); certFileErr != nil {
 			log.Fatalf("%s: %v", certFile, certFileErr)
 		}
 	}
 
-	keyFile, keyFileOk := options[constant.KEY_FILE]
-	if keyFileOk && keyFile != "" {
+	keyFile := config.KeyFile
+	if keyFile != "" {
 		if _, keyFileErr := os.Stat(keyFile); keyFileErr != nil {
 			log.Fatalf("%s: %v", keyFile, keyFileErr)
 		}
 	}
 
-	if certFileOk && certFile != "" && keyFileOk && keyFile != "" {
-		if !portOk {
-			port = constant.HTTPS_PORT
-		}
-
-	}
-
-	serverPoolConfigPath, pathOk := options[constant.SERVER_POOL_CONFIG]
-	if !pathOk {
+	serverPoolConfigPath := config.ServerPoolConfigPath
+	if serverPoolConfigPath == "" {
 		log.Fatalf("a server pool config file must be provided")
 	}
 
-	if validationErr := ValidateServerPoolConfigPath(serverPoolConfigPath); validationErr != nil {
-		log.Fatalf("server pool config validation error: %v", validationErr)
+	if pathValidationErr := ValidateServerPoolConfigPath(serverPoolConfigPath); pathValidationErr != nil {
+		log.Fatalf("server pool config validation error: %v", pathValidationErr)
 	}
 
 	serverPool, err := LoadServerPoolConfig(serverPoolConfigPath)
@@ -64,25 +64,19 @@ func LoadBalancingServerSetup(options map[string]string) {
 		log.Fatalf("error occurred while reading server pool config: %v", err)
 	}
 
-	portInt, err := strconv.ParseInt(port, 10, 0)
-	if err != nil {
-		log.Fatalf("%s is not a valid port:", port)
-	}
-
 	jinxLoadBalancerConfig := types.JinxLoadBalancingServerConfig{
-		IP:             ipAddress,
-		Port:           int(portInt),
-		LogRoot:        logRoot,
-		CertFile:       certFile,
-		KeyFile:        keyFile,
-		ServerPool:     serverPool,
-		Algorithm:      constant.ROUND_ROBIN,
-		SSLTermination: false,
+		IP:         ipAddress,
+		Port:       port,
+		LogRoot:    logRoot,
+		CertFile:   certFile,
+		KeyFile:    keyFile,
+		ServerPool: serverPool,
+		Algorithm:  algorithm,
 	}
 
-	jinx := load_balancer.NewJinxLoadBalancingServer(jinxLoadBalancerConfig, filepath.Join(constant.BASE, constant.LOAD_BALANCER))
+	jinx := load_balancer.NewJinxLoadBalancingServer(jinxLoadBalancerConfig, filepath.Join(constant.BASE, string(constant.LOAD_BALANCER)))
 	jinx.Start()
-
+	fmt.Println("Load Balancer Started...")
 }
 
 func ValidateServerPoolConfigPath(path string) error {

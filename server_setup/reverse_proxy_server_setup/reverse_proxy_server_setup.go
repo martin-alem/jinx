@@ -12,61 +12,56 @@ package reverse_proxy_server_setup
 
 import (
 	"encoding/json"
+	"fmt"
 	"jinx/internal/reverse_proxy"
 	"jinx/pkg/util/constant"
+	"jinx/pkg/util/helper"
 	"jinx/pkg/util/types"
 	"log"
 	"os"
 	"path/filepath"
-	"strconv"
 )
 
-func ReverseProxyServerSetup(options map[string]string) {
+func ReverseProxyServerSetup(config types.ReverseProxyConfig) {
 
 	//Create a directory for logs
-	logRoot := filepath.Join(constant.BASE, constant.REVERSE_PROXY, constant.LOG_ROOT)
+	logRoot := filepath.Join(constant.BASE, string(constant.REVERSE_PROXY), constant.LOG_ROOT)
 	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
 		log.Fatalf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
 	}
 
-	port, portOk := options[constant.PORT]
-	if !portOk {
-		port = constant.HTTP_PORT
+	port := config.Port
+	_, validationErr := helper.ValidatePort(port)
+	if validationErr != nil {
+		log.Fatalf(validationErr.Error())
 	}
 
-	ipAddress, ipOk := options[constant.IP]
-	if !ipOk {
+	ipAddress := config.IP
+	if ipAddress == "" {
 		ipAddress = constant.DEFAULT_IP
 	}
 
-	certFile, certFileOk := options[constant.CERT_FILE]
-	if certFileOk && certFile != "" {
+	certFile := config.CertFile
+	if certFile != "" {
 		if _, certFileErr := os.Stat(certFile); certFileErr != nil {
 			log.Fatalf("%s: %v", certFile, certFileErr)
 		}
 	}
 
-	keyFile, keyFileOk := options[constant.KEY_FILE]
-	if keyFileOk && keyFile != "" {
+	keyFile := config.KeyFile
+	if keyFile != "" {
 		if _, keyFileErr := os.Stat(keyFile); keyFileErr != nil {
 			log.Fatalf("%s: %v", keyFile, keyFileErr)
 		}
 	}
 
-	if certFileOk && certFile != "" && keyFileOk && keyFile != "" {
-		if !portOk {
-			port = constant.HTTPS_PORT
-		}
-
-	}
-
-	routeTablePath, pathOk := options[constant.ROUTE_TABLE]
-	if !pathOk {
+	routeTablePath := config.RoutingTable
+	if routeTablePath == "" {
 		log.Fatalln("a route file must be provided")
 	}
 
-	if validationErr := ValidateRouteTablePath(routeTablePath); validationErr != nil {
-		log.Fatalf("route table validation error: %v", validationErr)
+	if routeTableValidationErr := ValidateRouteTablePath(routeTablePath); routeTableValidationErr != nil {
+		log.Fatalf("route table validation error: %v", routeTableValidationErr)
 	}
 
 	routeTable, err := LoadRouteTable(routeTablePath)
@@ -74,22 +69,18 @@ func ReverseProxyServerSetup(options map[string]string) {
 		log.Fatalf("error occurred while reading route table: %v", err)
 	}
 
-	portInt, err := strconv.ParseInt(port, 10, 0)
-	if err != nil {
-		log.Fatalf("%s is not a valid port:", port)
-	}
-
 	jinxReversProxyConfig := types.JinxReverseProxyServerConfig{
 		IP:         ipAddress,
-		Port:       int(portInt),
+		Port:       port,
 		LogRoot:    logRoot,
 		RouteTable: routeTable,
 		CertFile:   certFile,
 		KeyFile:    keyFile,
 	}
 
-	jinx := reverse_proxy.NewJinxReverseProxyServer(jinxReversProxyConfig, filepath.Join(constant.BASE, constant.REVERSE_PROXY))
+	jinx := reverse_proxy.NewJinxReverseProxyServer(jinxReversProxyConfig, filepath.Join(constant.BASE, string(constant.REVERSE_PROXY)))
 	jinx.Start()
+	fmt.Println("Reverse Proxy Started...")
 }
 
 // ValidateRouteTablePath verifies the existence and format of the route table file specified by the path.

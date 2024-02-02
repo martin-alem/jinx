@@ -13,6 +13,7 @@
 package forward_proxy
 
 import (
+	"bufio"
 	"context"
 	"errors"
 	"fmt"
@@ -155,6 +156,58 @@ func (jx *JinxForwardProxyServer) handleHTTPSConnect(w http.ResponseWriter, r *h
 	go transfer(destConn, clientConn)
 }
 
+func (jx *JinxForwardProxyServer) handleWebSocketConnect(w http.ResponseWriter, r *http.Request) {
+	// Hijack the connection
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		http.Error(w, "HTTP Server does not support hijacking", http.StatusInternalServerError)
+		return
+	}
+
+	clientConn, _, err := hijacker.Hijack()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	defer func(clientConn net.Conn) {
+		_ = clientConn.Close()
+	}(clientConn)
+
+	// Connect to the destination server
+	destConn, err := net.Dial("tcp", r.Host)
+	if err != nil {
+		return
+	}
+	defer func(destConn net.Conn) {
+		_ = destConn.Close()
+	}(destConn)
+
+	// Forward the client's WebSocket upgrade request to the destination server
+	err = r.Write(destConn)
+	if err != nil {
+		http.Error(w, "Failed to send WebSocket upgrade request to the destination server", http.StatusInternalServerError)
+		return
+	}
+
+	// Read the response from the destination server
+	response, err := http.ReadResponse(bufio.NewReader(destConn), r)
+	if err != nil {
+		http.Error(w, "Failed to read WebSocket upgrade response from the destination server", http.StatusInternalServerError)
+		return
+	}
+
+	// Forward the destination server's response back to the client
+	err = response.Write(clientConn)
+	if err != nil {
+		http.Error(w, "Failed to send WebSocket upgrade request to the client", http.StatusInternalServerError)
+		return
+	}
+
+	// At this point, the WebSocket handshake is complete, and we can start relaying messages
+	go transfer(destConn, clientConn)
+	go transfer(clientConn, destConn)
+}
+
 func transfer(dst io.WriteCloser, src io.ReadCloser) {
 	defer func() {
 		_ = dst.Close()
@@ -176,6 +229,14 @@ func (jx *JinxForwardProxyServer) ServeHTTP(w http.ResponseWriter, r *http.Reque
 	// Special handling for HTTPS CONNECT requests
 	if r.Method == http.MethodConnect {
 		jx.handleHTTPSConnect(w, r)
+		return
+	}
+
+	upgradeHeader := strings.ToLower(r.Header.Get("Upgrade"))
+	connectionHeader := strings.ToLower(r.Header.Get("Connection"))
+
+	if upgradeHeader == "websocket" && strings.Contains(connectionHeader, "upgrade") {
+		jx.handleWebSocketConnect(w, r)
 		return
 	}
 
