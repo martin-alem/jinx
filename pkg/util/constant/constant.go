@@ -23,7 +23,7 @@ const JINX_INDEX_URL = "https://gemkox-spaces.nyc3.cdn.digitaloceanspaces.com/ji
 const JINX_404_URL = "https://gemkox-spaces.nyc3.cdn.digitaloceanspaces.com/jinx/404.html"
 const JINX_CSS_URL = "https://gemkox-spaces.nyc3.cdn.digitaloceanspaces.com/jinx/style.css"
 
-const JINX_ICO_FLE = "jinx.ico"
+const JINX_ICO_FILE = "jinx.ico"
 const JINX_SVG_FILE = "jinx.svg"
 const JINX_INDEX_FILE = "index.html"
 const JINX_404_FILE = "404.html"
@@ -33,7 +33,6 @@ const HTTP_SERVER string = "http_server"
 const REVERSE_PROXY string = "reverse_proxy_server"
 const FORWARD_PROXY string = "forward_proxy_server"
 const LOAD_BALANCER string = "load_balancing_server"
-const FTP_SERVER string = "ftp_server"
 const VERSION = "version"
 
 // ROUND_ROBIN The simplest form of load balancing, where requests are distributed sequentially to the list of servers in rotation.
@@ -79,7 +78,6 @@ const DESTROY string = "destroy"
 
 const HTTP_PORT = "80"
 const HTTPS_PORT = "443"
-const FTP = "21"
 
 const MODE = "mode"
 const PORT = "port"
@@ -91,6 +89,6 @@ const LOG_ROOT_DIR = "log-root"
 const CERT_FILE = "cert-file"
 const KEY_FILE = "key-file"
 const ROUTE_TABLE = "route-table"
-const BLACK_LIST = "black_list"
+const BLACK_LIST = "black-list"
 const SERVER_POOL_CONFIG = "server-pool-config"
 const ALGO = "alg"

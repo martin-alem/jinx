@@ -128,7 +128,7 @@ func (jx *JinxReverseProxyServer) Start() {
 	}()
 
 	if jx.config.CertFile != "" && jx.config.KeyFile != "" {
-		jx.serverLogger.Info(fmt.Sprintf("Starting Jinx Reverse Proxy Sever on %s using HTTPS", addr))
+		jx.serverLogger.Info(fmt.Sprintf("Starting Jinx Reverse Proxy Sever on %s using HTTPS Protocol", addr))
 		err := s.ListenAndServeTLS(jx.config.CertFile, jx.config.KeyFile)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
@@ -137,7 +137,7 @@ func (jx *JinxReverseProxyServer) Start() {
 		return
 	}
 
-	jx.serverLogger.Info(fmt.Sprintf("Starting Jinx Reverse Proxy Sever on %s using HTTP", addr))
+	jx.serverLogger.Info(fmt.Sprintf("Starting Jinx Reverse Proxy Sever on %s using HTTP Protocol", addr))
 	err := s.ListenAndServe()
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))

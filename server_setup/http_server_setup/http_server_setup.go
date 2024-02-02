@@ -86,7 +86,7 @@ func HTTPServerSetup(options map[string]string) {
 		constant.JINX_INDEX_URL: constant.JINX_INDEX_FILE,
 		constant.JINX_404_URL:   constant.JINX_404_FILE,
 		constant.JINX_CSS_URL:   constant.JINX_CSS_FILE,
-		constant.JINX_ICO_URL:   constant.JINX_ICO_FLE,
+		constant.JINX_ICO_URL:   constant.JINX_ICO_FILE,
 		constant.JINX_SVG_URL:   constant.JINX_SVG_FILE,
 	}
 
@@ -205,7 +205,7 @@ func HandleResourceResponse(websiteRoot string, imageDir string, resource *types
 
 	filePath := filepath.Join(websiteRoot, resource.Filename)
 
-	if resource.Filename == constant.JINX_ICO_FLE || resource.Filename == constant.JINX_SVG_FILE {
+	if resource.Filename == constant.JINX_ICO_FILE || resource.Filename == constant.JINX_SVG_FILE {
 		filePath = filepath.Join(imageDir, resource.Filename)
 	}
 

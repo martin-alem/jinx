@@ -15,7 +15,6 @@ import (
 	"encoding/json"
 	"jinx/pkg/util/constant"
 	"jinx/server_setup/forward_proxy_server_setup"
-	"jinx/server_setup/ftp_server_setup"
 	"jinx/server_setup/http_server_setup"
 	"jinx/server_setup/load_balancing_server_setup"
 	"jinx/server_setup/reverse_proxy_server_setup"
@@ -51,9 +50,6 @@ func HandleStart() {
 		break
 	case constant.LOAD_BALANCER:
 		load_balancing_server_setup.LoadBalancingServerSetup(configuration)
-		break
-	case constant.FTP_SERVER:
-		ftp_server_setup.FTPServerSetup(configuration)
 		break
 	default:
 		log.Fatalf("%s is not a valid server mod option. valid option includes: http_server, reverse_proxy_server, forward_proxy_server, load_balancing_server, ftp_server", configuration[constant.MODE])
