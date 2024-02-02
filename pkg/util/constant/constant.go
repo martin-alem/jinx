@@ -33,7 +33,6 @@ const HTTP_SERVER string = "http_server"
 const REVERSE_PROXY string = "reverse_proxy_server"
 const FORWARD_PROXY string = "forward_proxy_server"
 const LOAD_BALANCER string = "load_balancing_server"
-const FTP_SERVER string = "ftp_server"
 const VERSION = "version"
 
 // ROUND_ROBIN The simplest form of load balancing, where requests are distributed sequentially to the list of servers in rotation.
@@ -79,7 +78,6 @@ const DESTROY string = "destroy"
 
 const HTTP_PORT = "80"
 const HTTPS_PORT = "443"
-const FTP = "21"
 
 const MODE = "mode"
 const PORT = "port"
