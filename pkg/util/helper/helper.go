@@ -3,6 +3,7 @@ package helper
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"net"
 	"os"
@@ -256,4 +257,46 @@ func ValidatePort(port int) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// transfer is a utility function designed to relay data between two streams: `src` (source) and `dst` (destination).
+// It reads data from `src` and writes it to `dst`, facilitating the bidirectional flow of data in scenarios such as
+// proxying HTTP requests, handling WebSocket connections, or any other context where data needs to be passed
+// between two endpoints. This function is typically used to enable communication between a client and a server
+// or between two servers, especially after establishing a connection or upgrading a protocol (e.g., upgrading an
+// HTTP connection to a WebSocket).
+
+// Parameters:
+//   - dst: The destination writer where data from the source will be written. It must implement the io.WriteCloser
+//          interface to allow writing data and closing the stream once the transfer is complete.
+//   - src: The source reader from which data will be read. It must implement the io.ReadCloser interface to
+//          allow reading data and closing the stream upon completion.
+
+// The function works by continuously reading data from the `src` stream and writing it to the `dst` stream until
+// there's no more data to read or an error occurs. It uses the `io.Copy` function, which handles the read-write
+// loop efficiently and copies data directly between streams without unnecessary buffering.
+
+// After the data transfer is complete or if an error interrupts the transfer, `transfer` ensures proper cleanup
+// by deferring the closure of both the `src` and `dst` streams. This deferred closure is crucial for releasing
+// resources and avoiding leaks, especially in network programming and concurrent applications where multiple
+// data transfers may occur simultaneously.
+
+// Usage:
+//   - This function is invoked in scenarios requiring the relay of data between two endpoints, such as forwarding
+//     HTTP requests in a reverse proxy server or managing WebSocket connections. It is typically run in its
+//     goroutine to allow simultaneous data flow in both directions (e.g., using two `transfer` calls in separate
+//     goroutines for bidirectional communication).
+
+// Note:
+//   - While `transfer` abstracts away the complexities of copying data between streams, it's important to handle
+//     errors and the lifecycle of connections outside this function. The caller should monitor for termination
+//     conditions, such as network errors or signals indicating the end of communication, to gracefully close
+//     the connections and terminate the data transfer.
+
+func Transfer(dst io.WriteCloser, src io.ReadCloser) {
+	defer func() {
+		_ = dst.Close()
+		_ = src.Close()
+	}()
+	_, _ = io.Copy(dst, src)
 }

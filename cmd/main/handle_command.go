@@ -21,9 +21,11 @@ import (
 	"jinx/server_setup/reverse_proxy_server_setup"
 	"log"
 	"os"
+	"path/filepath"
 )
 
 var configuration types.JinxServerConfiguration
+var server types.JinxServer
 
 func init() {
 	configFile, openErr := os.Open(constant.CONFIG_FILE_PATH)
@@ -42,28 +44,48 @@ func HandleStart() {
 
 	switch configuration.Mode {
 	case constant.HTTP_SERVER:
-		http_server_setup.HTTPServerSetup(configuration.HttpServerConfig)
+		httpServerWorkingDir := filepath.Join(constant.BASE, string(constant.HTTP_SERVER))
+		jinx, serverErr := http_server_setup.HTTPServerSetup(configuration.HttpServerConfig, httpServerWorkingDir)
+		if serverErr != nil {
+			log.Fatal(serverErr)
+		}
+		server = jinx.Start()
 		break
 	case constant.REVERSE_PROXY:
-		reverse_proxy_server_setup.ReverseProxyServerSetup(configuration.ReverseProxyConfig)
+		reverseProxyWorkingDir := filepath.Join(constant.BASE, string(constant.REVERSE_PROXY))
+		jinx, serverErr := reverse_proxy_server_setup.ReverseProxyServerSetup(configuration.ReverseProxyConfig, reverseProxyWorkingDir)
+		if serverErr != nil {
+			log.Fatal(serverErr)
+		}
+		server = jinx.Start()
 		break
 	case constant.FORWARD_PROXY:
-		forward_proxy_server_setup.ForwardProxyServerSetup(configuration.ForwardProxyConfig)
+		forwardProxyWorkingDir := filepath.Join(constant.BASE, string(constant.FORWARD_PROXY))
+		jinx, serverErr := forward_proxy_server_setup.ForwardProxyServerSetup(configuration.ForwardProxyConfig, forwardProxyWorkingDir)
+		if serverErr != nil {
+			log.Fatal(serverErr)
+		}
+		server = jinx.Start()
 		break
 	case constant.LOAD_BALANCER:
-		load_balancing_server_setup.LoadBalancingServerSetup(configuration.LoadBalancerConfig)
+		loadBalancerWorkingDir := filepath.Join(constant.BASE, string(constant.LOAD_BALANCER))
+		jinx, serverErr := load_balancing_server_setup.LoadBalancingServerSetup(configuration.LoadBalancerConfig, loadBalancerWorkingDir)
+		if serverErr != nil {
+			log.Fatal(serverErr)
+		}
+		server = jinx.Start()
 		break
 	}
 }
 
 func HandleStop() {
-
+	server.Stop()
 }
 
 func HandleRestart() {
-
+	server.Restart()
 }
 
 func HandleDestroy() {
-
+	server.Destroy()
 }

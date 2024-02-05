@@ -12,65 +12,108 @@ package reverse_proxy_server_setup
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"jinx/internal/reverse_proxy"
 	"jinx/pkg/util/constant"
+	"jinx/pkg/util/error_handler"
 	"jinx/pkg/util/helper"
 	"jinx/pkg/util/types"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 )
 
-func ReverseProxyServerSetup(config types.ReverseProxyConfig) {
+// ReverseProxyServerSetup initializes and configures a reverse proxy server based on the provided
+// configuration and server root directory. This setup process includes creating a directory for logs,
+// validating the specified port, IP address, and paths for SSL certificate and key files, and loading
+// the routing table from a specified file. It ensures that all necessary preconditions for running the
+// reverse proxy server are met, including permission checks for creating directories and file existence
+// checks for critical configuration files.
+//
+// Parameters:
+//   - config: A types.ReverseProxyConfig object containing configuration options for the reverse proxy server,
+//     including the port, IP address, paths to SSL certificate and key files, and the path to the routing table file.
+//   - serverRootDir: The root directory path for the server where logs and other server-related files will be stored.
+//
+// The method performs the following key actions:
+//   1. Creates a log directory within the server root directory to store log files.
+//   2. Validates the specified port to ensure it is within the acceptable range and format.
+//   3. Validates the IP address, defaulting to the loopback address if the specified IP is invalid.
+//   4. Checks for the existence of the SSL certificate and key files if specified, ensuring secure connections can be established.
+//   5. Validates the presence and format of the routing table file, which is crucial for determining the forwarding rules for incoming requests.
+//   6. Loads the routing table from the specified file, parsing it to set up forwarding rules for the reverse proxy server.
+//
+// If any step in the setup process fails (e.g., due to invalid configuration options, permission issues, or missing files),
+// the function returns nil and an error detailing the reason for the failure. This ensures that the server does not start
+// in an improperly configured state, minimizing potential runtime errors and security risks.
+//
+// Returns:
+//   - A types.JinxServer instance configured as a reverse proxy server, ready to start serving requests based on the routing table.
+//   - A pointer to an error_handler.JinxError if an error occurs during the setup process. If setup is successful, nil is returned.
+//
+// Usage:
+//   - This method is intended to be called during the initial setup phase of the reverse proxy server, typically at application
+//     startup. It provides a streamlined process for preparing the server environment, loading configuration settings, and ensuring
+//     that the server is ready to handle requests according to the defined forwarding rules.
+
+func ReverseProxyServerSetup(config types.ReverseProxyConfig, serverRootDir string) (types.JinxServer, *error_handler.JinxError) {
 
 	//Create a directory for logs
-	logRoot := filepath.Join(constant.BASE, string(constant.REVERSE_PROXY), constant.LOG_ROOT)
+	logRoot := filepath.Join(serverRootDir, string(constant.REVERSE_PROXY), constant.LOG_ROOT)
 	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
-		log.Fatalf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
+		log.Printf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
+		return nil, error_handler.NewJinxError(constant.ERR_CREATE_DIR, mkLogDirErr)
 	}
 
 	port := config.Port
 	_, validationErr := helper.ValidatePort(port)
 	if validationErr != nil {
-		log.Fatalf(validationErr.Error())
+		log.Printf(validationErr.Error())
+		return nil, error_handler.NewJinxError(constant.INVALID_PORT, validationErr)
 	}
 
-	ipAddress := config.IP
-	if ipAddress == "" {
-		ipAddress = constant.DEFAULT_IP
+	ipAddress := net.ParseIP(config.IP)
+	if ipAddress == nil {
+		log.Printf("%s is an invalid ip address: using loopback address 127.0.0.1", config.IP)
+		ipAddress = net.IP(constant.DEFAULT_IP)
 	}
 
 	certFile := config.CertFile
 	if certFile != "" {
 		if _, certFileErr := os.Stat(certFile); certFileErr != nil {
-			log.Fatalf("%s: %v", certFile, certFileErr)
+			log.Printf("%s: %v", certFile, certFileErr)
+			return nil, error_handler.NewJinxError(constant.INVALID_CERT_PATH, certFileErr)
 		}
 	}
 
 	keyFile := config.KeyFile
 	if keyFile != "" {
 		if _, keyFileErr := os.Stat(keyFile); keyFileErr != nil {
-			log.Fatalf("%s: %v", keyFile, keyFileErr)
+			log.Printf("%s: %v", keyFile, keyFileErr)
+			return nil, error_handler.NewJinxError(constant.INVALID_KEY_PATH, keyFileErr)
 		}
 	}
 
 	routeTablePath := config.RoutingTable
 	if routeTablePath == "" {
-		log.Fatalln("a route file must be provided")
+		log.Println("a route file must be provided")
+		return nil, error_handler.NewJinxError(constant.ERR_INVALID_ROUTE_TABLE, errors.New("no route table"))
 	}
 
 	if routeTableValidationErr := ValidateRouteTablePath(routeTablePath); routeTableValidationErr != nil {
-		log.Fatalf("route table validation error: %v", routeTableValidationErr)
+		log.Printf("route table validation error: %v", routeTableValidationErr)
+		return nil, error_handler.NewJinxError(constant.ERR_INVALID_ROUTE_TABLE, validationErr)
 	}
 
 	routeTable, err := LoadRouteTable(routeTablePath)
 	if err != nil {
-		log.Fatalf("error occurred while reading route table: %v", err)
+		log.Printf("error occurred while reading route table: %v", err)
+		return nil, error_handler.NewJinxError(constant.ERR_INVALID_ROUTE_TABLE, err)
 	}
 
 	jinxReversProxyConfig := types.JinxReverseProxyServerConfig{
-		IP:         ipAddress,
+		IP:         string(ipAddress),
 		Port:       port,
 		LogRoot:    logRoot,
 		RouteTable: routeTable,
@@ -78,9 +121,8 @@ func ReverseProxyServerSetup(config types.ReverseProxyConfig) {
 		KeyFile:    keyFile,
 	}
 
-	jinx := reverse_proxy.NewJinxReverseProxyServer(jinxReversProxyConfig, filepath.Join(constant.BASE, string(constant.REVERSE_PROXY)))
-	jinx.Start()
-	fmt.Println("Reverse Proxy Started...")
+	jinx := reverse_proxy.NewJinxReverseProxyServer(jinxReversProxyConfig, filepath.Join(serverRootDir, string(constant.REVERSE_PROXY)))
+	return jinx, nil
 }
 
 // ValidateRouteTablePath verifies the existence and format of the route table file specified by the path.

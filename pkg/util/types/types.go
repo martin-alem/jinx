@@ -5,6 +5,13 @@ import (
 	"sync"
 )
 
+type JinxServer interface {
+	Start() JinxServer
+	Stop()
+	Restart() JinxServer
+	Destroy()
+}
+
 type JinxHttpServerConfig struct {
 	IP          string
 	Port        int

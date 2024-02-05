@@ -1,0 +1,19 @@
+# Jinx - Web Server Software
+
+## Overview
+Jinx is a versatile server software capable of operating in multiple modes: HTTP/S web server, reverse proxy, forward proxy, and load balancer. Designed to serve static websites, single-page applications, and support WebSocket protocols, it offers flexibility through simple JSON configuration.
+
+## Features
+- **HTTP/S Web Server:** Serve static content and single-page applications.
+- **Reverse Proxy:** Route requests to backend servers.
+- **Forward Proxy:** Manage outbound requests for clients.
+- **Load Balancer:** Distribute incoming traffic across multiple servers.
+- **WebSocket Support:** Real-time communication for web applications.
+- **Configurable:** Easily switch modes and settings through a JSON file.
+
+## Getting Started
+
+### Prerequisites
+- [List of prerequisites]
+
+### Installation
