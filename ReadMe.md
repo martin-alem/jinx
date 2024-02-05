@@ -8,12 +8,21 @@ Jinx is a versatile server software capable of operating in multiple modes: HTTP
 - **Reverse Proxy:** Route requests to backend servers.
 - **Forward Proxy:** Manage outbound requests for clients.
 - **Load Balancer:** Distribute incoming traffic across multiple servers.
-- **WebSocket Support:** Real-time communication for web applications.
 - **Configurable:** Easily switch modes and settings through a JSON file.
+- **Protocols:** Supports HTTP, HTTPS, and WebSockets
 
-## Getting Started
+## Software Architecture
+![Jinx Software Architecture](https://gemkox-spaces.nyc3.cdn.digitaloceanspaces.com/jinx/Jinx_Software_Architecture.png)
 
-### Prerequisites
-- [List of prerequisites]
+
+### Operating System
+- Linux
+- MacOS
 
 ### Installation
+#### Linux Installation
+
+
+#### MacOS Installation
+
+
