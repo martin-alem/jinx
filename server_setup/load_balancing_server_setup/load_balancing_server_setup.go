@@ -2,33 +2,37 @@ package load_balancing_server_setup
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"jinx/internal/load_balancer"
 	"jinx/pkg/util/constant"
+	"jinx/pkg/util/error_handler"
 	"jinx/pkg/util/helper"
 	"jinx/pkg/util/types"
 	"log"
+	"net"
 	"os"
 	"path/filepath"
 )
 
-func LoadBalancingServerSetup(config types.LoadBalancerConfig) {
+func LoadBalancingServerSetup(config types.LoadBalancerConfig, serverRootDir string) (types.JinxServer, *error_handler.JinxError) {
 
 	//Create a directory for logs
-	logRoot := filepath.Join(constant.BASE, string(constant.LOAD_BALANCER), constant.LOG_ROOT)
+	logRoot := filepath.Join(serverRootDir, string(constant.LOAD_BALANCER), constant.LOG_ROOT)
 	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
-		log.Fatalf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
+		log.Printf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
+		return nil, error_handler.NewJinxError(constant.ERR_CREATE_DIR, mkLogDirErr)
 	}
-
 	port := config.Port
 	_, validationErr := helper.ValidatePort(port)
 	if validationErr != nil {
-		log.Fatalf(validationErr.Error())
+		log.Printf(validationErr.Error())
+		return nil, error_handler.NewJinxError(constant.INVALID_PORT, validationErr)
 	}
 
-	ipAddress := config.IP
-	if ipAddress == "" {
-		ipAddress = constant.DEFAULT_IP
+	ipAddress := net.ParseIP(config.IP)
+	if ipAddress == nil {
+		log.Printf("%s is an invalid ip address: using loopback address 127.0.0.1", config.IP)
+		ipAddress = net.IP(constant.DEFAULT_IP)
 	}
 
 	algorithm := config.Algo
@@ -39,33 +43,38 @@ func LoadBalancingServerSetup(config types.LoadBalancerConfig) {
 	certFile := config.CertFile
 	if certFile != "" {
 		if _, certFileErr := os.Stat(certFile); certFileErr != nil {
-			log.Fatalf("%s: %v", certFile, certFileErr)
+			log.Printf("%s: %v", certFile, certFileErr)
+			return nil, error_handler.NewJinxError(constant.INVALID_CERT_PATH, certFileErr)
 		}
 	}
 
 	keyFile := config.KeyFile
 	if keyFile != "" {
 		if _, keyFileErr := os.Stat(keyFile); keyFileErr != nil {
-			log.Fatalf("%s: %v", keyFile, keyFileErr)
+			log.Printf("%s: %v", keyFile, keyFileErr)
+			return nil, error_handler.NewJinxError(constant.INVALID_KEY_PATH, keyFileErr)
 		}
 	}
 
 	serverPoolConfigPath := config.ServerPoolConfigPath
 	if serverPoolConfigPath == "" {
-		log.Fatalf("a server pool config file must be provided")
+		log.Println("a server pool config file must be provided")
+		return nil, error_handler.NewJinxError(constant.ERR_INVALID_SERVER_POOL_CONFIG, errors.New("no server pool config"))
 	}
 
 	if pathValidationErr := ValidateServerPoolConfigPath(serverPoolConfigPath); pathValidationErr != nil {
-		log.Fatalf("server pool config validation error: %v", pathValidationErr)
+		log.Printf("server pool config validation error: %v", pathValidationErr)
+		return nil, error_handler.NewJinxError(constant.ERR_INVALID_SERVER_POOL_CONFIG, pathValidationErr)
 	}
 
 	serverPool, err := LoadServerPoolConfig(serverPoolConfigPath)
 	if err != nil {
-		log.Fatalf("error occurred while reading server pool config: %v", err)
+		log.Printf("error occurred while reading server pool config: %v", err)
+		return nil, error_handler.NewJinxError(constant.ERR_INVALID_SERVER_POOL_CONFIG, err)
 	}
 
 	jinxLoadBalancerConfig := types.JinxLoadBalancingServerConfig{
-		IP:         ipAddress,
+		IP:         string(ipAddress),
 		Port:       port,
 		LogRoot:    logRoot,
 		CertFile:   certFile,
@@ -75,8 +84,7 @@ func LoadBalancingServerSetup(config types.LoadBalancerConfig) {
 	}
 
 	jinx := load_balancer.NewJinxLoadBalancingServer(jinxLoadBalancerConfig, filepath.Join(constant.BASE, string(constant.LOAD_BALANCER)))
-	jinx.Start()
-	fmt.Println("Load Balancer Started...")
+	return jinx, nil
 }
 
 func ValidateServerPoolConfigPath(path string) error {

@@ -32,10 +32,11 @@ import (
 )
 
 type JinxHttpServer struct {
-	config        types.JinxHttpServerConfig // Server configuration settings.
-	errorLogger   *slog.Logger               // Logger for error messages.
-	serverLogger  *slog.Logger               // Logger for general server activity.
-	serverRootDir string                     // Server root dir where website files are stored
+	config           types.JinxHttpServerConfig // Server configuration settings.
+	errorLogger      *slog.Logger               // Logger for error messages.
+	serverLogger     *slog.Logger               // Logger for general server activity.
+	serverWorkingDir string                     // Server root dir where website files are stored
+	serverInstance   *http.Server
 }
 
 // NewJinxHttpServer initializes a new instance of JinxHttpServer with the provided configuration
@@ -67,7 +68,7 @@ type JinxHttpServer struct {
 // It ensures that the server is properly configured and ready to handle HTTP requests efficiently
 // and reliably.
 
-func NewJinxHttpServer(config types.JinxHttpServerConfig, serverRoot string) *JinxHttpServer {
+func NewJinxHttpServer(config types.JinxHttpServerConfig, serverWorkingDir string) *JinxHttpServer {
 
 	errorLogFile, errorLogErr := os.OpenFile(filepath.Join(config.LogRoot, "error.log"), os.O_RDWR|os.O_APPEND|os.O_CREATE, 0644)
 	if errorLogErr != nil {
@@ -80,16 +81,17 @@ func NewJinxHttpServer(config types.JinxHttpServerConfig, serverRoot string) *Ji
 	}
 
 	//Make sure www exists and it's readable
-	readable, err := helper.IsDirReadable(serverRoot)
+	readable, err := helper.IsDirReadable(serverWorkingDir)
 	if !readable || err != nil {
-		log.Fatalf("%s does not exist or is not readable", serverRoot)
+		log.Fatalf("%s does not exist or is not readable", serverWorkingDir)
 	}
 
 	return &JinxHttpServer{
-		config:        config,
-		errorLogger:   slog.New(slog.NewJSONHandler(errorLogFile, nil)),
-		serverLogger:  slog.New(slog.NewJSONHandler(serverLogFile, nil)),
-		serverRootDir: serverRoot,
+		config:           config,
+		errorLogger:      slog.New(slog.NewJSONHandler(errorLogFile, nil)),
+		serverLogger:     slog.New(slog.NewJSONHandler(serverLogFile, nil)),
+		serverWorkingDir: serverWorkingDir,
+		serverInstance:   nil,
 	}
 }
 
@@ -115,7 +117,7 @@ func NewJinxHttpServer(config types.JinxHttpServerConfig, serverRoot string) *Ji
 //
 // This method encapsulates the entire lifecycle of the server from start-up to graceful shutdown,
 // making it easy to manage the server's operation within the context of an application.
-func (jx *JinxHttpServer) Start() {
+func (jx *JinxHttpServer) Start() types.JinxServer {
 	addr := fmt.Sprintf("%s:%d", jx.config.IP, jx.config.Port)
 	jx.serverLogger.Info(fmt.Sprintf("Starting Jinx on %s", addr))
 
@@ -126,6 +128,8 @@ func (jx *JinxHttpServer) Start() {
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
+
+	jx.serverInstance = s
 
 	// Set up a channel to listen for interrupt or termination signals
 	signalChan := make(chan os.Signal, 1)
@@ -148,21 +152,143 @@ func (jx *JinxHttpServer) Start() {
 		jx.serverLogger.Info(fmt.Sprintf("Successfully shutdown server"))
 	}()
 
-	if jx.config.CertFile != "" && jx.config.KeyFile != "" {
-		err := s.ListenAndServeTLS(jx.config.CertFile, jx.config.KeyFile)
+	go func() {
+		if jx.config.CertFile != "" && jx.config.KeyFile != "" {
+			err := s.ListenAndServeTLS(jx.config.CertFile, jx.config.KeyFile)
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
+				log.Fatal(err)
+			}
+			return
+		}
+
+		// Start the server
+		err := s.ListenAndServe()
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
 			log.Fatal(err)
 		}
+	}()
+
+	return jx
+}
+
+// Stop gracefully shuts down the JinxHttpServer instance, ensuring all ongoing requests are
+// completed before closure. This method initiates a graceful shutdown by creating a context
+// with a 15-second timeout, signaling the server to cease accepting new requests and wait
+// for existing requests to conclude within this timeframe. If the server successfully shuts
+// down within the allotted time, it logs a confirmation message. If an error occurs during
+// shutdown (e.g., the timeout is exceeded), it logs the error. This method is essential for
+// clean server termination, minimizing the risk of interrupting active client connections
+// and ensuring resources are properly released.
+//
+// The method does nothing if the server instance (`serverInstance`) is nil, which implies
+// that the server has not been started or has already been stopped. This check prevents
+// potential nil pointer dereferences and ensures the method's idempotency, allowing it to
+// be safely called multiple times.
+//
+// Usage:
+// - This method should be called when the server needs to be stopped, such as in response
+//   to an interrupt signal or a shutdown command. It is designed to be used as part of
+//   the server's lifecycle management, facilitating controlled and safe server termination.
+
+func (jx *JinxHttpServer) Stop() {
+	if jx.serverInstance == nil {
+		return
+	}
+	// Create a context with a timeout to tell the server how long to wait for existing requests to finish
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	// Attempt to gracefully shut down the server
+	if err := jx.serverInstance.Shutdown(ctx); err != nil {
+		jx.errorLogger.Error(fmt.Sprintf("Server shutdown error: %s", err))
+	}
+
+	jx.serverLogger.Info(fmt.Sprintf("Successfully shutdown server manually"))
+}
+
+// Restart attempts to gracefully restart the JinxHttpServer instance. It first checks if the server
+// is running (`serverInstance` is not nil); if not, it returns nil, indicating there's no server to restart.
+// If the server is running, it performs a graceful shutdown by calling the Stop method, which waits
+// for ongoing requests to finish before stopping the server. After stopping, it immediately initiates
+// the server's restart process in a new goroutine, allowing the method to return without waiting for
+// the server to restart. This non-blocking approach facilitates rapid restarts without stalling the
+// calling thread or process.
+//
+// The server is restarted with TLS if both `CertFile` and `KeyFile` are specified in the server's
+// configuration (`config`). If these are not provided, it restarts without TLS. If an error occurs
+// during the restart process, such as issues with binding to the specified port or problems with
+// the TLS configuration, it logs the error and terminates the application with `log.Fatal`.
+// This method ensures the server can be dynamically restarted with updated configurations or
+// in response to certain runtime conditions without manual intervention.
+//
+// Usage:
+// - This method is useful in scenarios where changes to the server's configuration or runtime
+//   environment necessitate a restart, such as after updating TLS certificates or changing server
+//   settings. It provides a programmatic way to restart the server, encapsulating the shutdown
+//   and restart logic within the JinxHttpServer's lifecycle management.
+//
+// Returns:
+// - A reference to the restarted JinxHttpServer instance (`jx`), allowing for chaining or further
+//   actions. Returns nil if the server was not running at the time of the call, indicating there
+//   was no server instance to restart.
+
+func (jx *JinxHttpServer) Restart() types.JinxServer {
+	if jx.serverInstance == nil {
+		return nil
+	}
+
+	jx.Stop()
+	go func() {
+		if jx.config.CertFile != "" && jx.config.KeyFile != "" {
+			err := jx.serverInstance.ListenAndServeTLS(jx.config.CertFile, jx.config.KeyFile)
+			if err != nil && !errors.Is(err, http.ErrServerClosed) {
+				jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
+				log.Fatal(err)
+			}
+			return
+		}
+
+		// Start the server
+		err := jx.serverInstance.ListenAndServe()
+		if err != nil && !errors.Is(err, http.ErrServerClosed) {
+			jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
+			log.Fatal(err)
+		}
+	}()
+
+	return jx
+}
+
+// Destroy performs a complete teardown of the JinxHttpServer instance, effectively stopping the server
+// and removing its working directory and all contained data. This method first checks if the server instance
+// (`serverInstance`) is currently running; if it is not, the method returns immediately, as there is no server
+// to stop or resources to clean up. If the server is running, it calls the Stop method to gracefully shut down
+// the server, ensuring that all ongoing requests are allowed to complete before the server stops accepting new
+// requests. Following the server shutdown, Destroy removes the server's working directory (`serverWorkingDir`),
+// which includes all files and subdirectories related to the server's operation. This operation is irreversible
+// and should be used with caution, as it results in the loss of any data stored in the server's working directory.
+//
+// Usage:
+// - The Destroy method is intended for scenarios where a complete cleanup of the server and its resources is
+//   required, such as during decommissioning, or in testing and development environments where a fresh start
+//   is needed. It provides a way to programmatically remove all traces of the server's operation from the host
+//   system.
+//
+// Note:
+// - Care should be taken when calling this method, as it will delete the server's working directory and all its
+//   contents, which may include application data, logs, and configuration files. Ensure that any important data
+//   is backed up before calling Destroy.
+
+func (jx *JinxHttpServer) Destroy() {
+	if jx.serverInstance == nil {
 		return
 	}
 
-	// Start the server
-	err := s.ListenAndServe()
-	if err != nil && !errors.Is(err, http.ErrServerClosed) {
-		jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
-		log.Fatal(err)
-	}
+	jx.Stop()
+	_ = os.RemoveAll(jx.serverWorkingDir)
+
 }
 
 // ServeHTTP is the core method implementing the http.Handler interface for JinxHttpServer, making
@@ -196,42 +322,25 @@ func (jx *JinxHttpServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	startTime := time.Now()
 
 	// Log the incoming request
-	jx.logRequestDetails(r)
+	jx.serverLogger.Info(fmt.Sprintf("Received request: Method=%s, URL=%s, RemoteAddr=%s", r.Method, r.URL.String(), r.RemoteAddr))
 
 	// Determine the file to serve
-	filePath, err := jx.resolveFilePath(r)
+	filePath, err := jx.ResolveFilePath(r)
 	if err != nil {
 		jx.serverLogger.Info(err.Error())
-		jx.serve404(w, filePath) // Serve the 404 page if an error occurs
+		jx.Serve404(w, filePath) // Serve the 404 page if an error occurs
 		return
 	}
 
 	// Serve the file
-	jx.serveFile(w, r, filePath)
+	jx.ServeFile(w, r, filePath)
 
 	// Log the response details
-	jx.logResponseDetails(startTime)
+	responseTime := time.Since(startTime)
+	jx.serverLogger.Info(fmt.Sprintf("Served response: Duration=%s", responseTime))
 }
 
-// logRequestDetails logs the essential details of an incoming HTTP request.
-// This method is instrumental in providing visibility into the traffic the server is handling,
-// logging vital information such as the HTTP method used, the request URL, and the remote address
-// of the client making the request. This information can be invaluable for debugging, monitoring,
-// and analyzing the patterns of requests received by the server.
-//
-// Parameters:
-//   - r: The *http.Request object representing the client's request. It contains all the details
-//     of the request made to the server, including the method, URL, and remote address.
-//
-// This function extracts the method, URL, and remote address from the provided request object
-// and formats them into a log message. It then uses the server's serverLogger to log this message
-// at the Info level. This centralized logging of request details aids in maintaining a clear and
-// concise record of server activity, facilitating easier troubleshooting and operational oversight.
-func (jx *JinxHttpServer) logRequestDetails(r *http.Request) {
-	jx.serverLogger.Info(fmt.Sprintf("Received request: Method=%s, URL=%s, RemoteAddr=%s", r.Method, r.URL.String(), r.RemoteAddr))
-}
-
-// resolveFilePath determines the absolute file path to serve in response to an HTTP request.
+// ResolveFilePath determines the absolute file path to serve in response to an HTTP request.
 // It dynamically resolves the file path based on the request's host header and the requested URL path,
 // taking into account the server's configuration for the website root directory and handling default
 // content and not found scenarios.
@@ -257,17 +366,17 @@ func (jx *JinxHttpServer) logRequestDetails(r *http.Request) {
 // points to the root directory or does not specify a file, the function defaults to serving 'index.html' from
 // the determined root directory. If the file does not exist or is a directory, it sets up to serve a '404 Not Found'
 // page instead, returning its path and an error to indicate the file was not found.
-func (jx *JinxHttpServer) resolveFilePath(r *http.Request) (string, error) {
+func (jx *JinxHttpServer) ResolveFilePath(r *http.Request) (string, error) {
 	host := strings.Split(r.Host, ":")[0]
 	root := jx.config.WebsiteRoot
 	urlPath := path.Clean(r.URL.Path)
 
 	// Determine the root directory based on the host
 	if helper.IsLocalhostOrIP(host) {
-		root = jx.serverRootDir
+		root = jx.serverWorkingDir
 		host = constant.DEFAULT_WEBSITE_ROOT
 	} else if readable, _ := helper.IsDirReadable(filepath.Join(root, host)); !readable {
-		root = jx.serverRootDir
+		root = jx.serverWorkingDir
 		host = constant.DEFAULT_WEBSITE_ROOT
 	}
 
@@ -282,7 +391,7 @@ func (jx *JinxHttpServer) resolveFilePath(r *http.Request) (string, error) {
 	return file, nil
 }
 
-// serveFile sends a static file located at the specified filePath to the client. It sets appropriate
+// ServeFile sends a static file located at the specified filePath to the client. It sets appropriate
 // HTTP headers before sending the file to optimize for caching and to identify the server software.
 // This function is primarily used to serve static content like HTML, CSS, JavaScript files, images,
 // and more, making it a key component of the server's capability to deliver web resources efficiently.
@@ -300,30 +409,13 @@ func (jx *JinxHttpServer) resolveFilePath(r *http.Request) (string, error) {
 // identifies the server software to clients without exposing detailed version information for security.
 // Finally, it uses the http.ServeFile function to handle the file serving, including support for
 // partial content delivery and automatic MIME type detection.
-func (jx *JinxHttpServer) serveFile(w http.ResponseWriter, r *http.Request, filePath string) {
+func (jx *JinxHttpServer) ServeFile(w http.ResponseWriter, r *http.Request, filePath string) {
 	w.Header().Set("Cache-Control", "max-age=3600")
 	w.Header().Set("Server", constant.SOFTWARE_NAME)
 	http.ServeFile(w, r, filePath)
 }
 
-// logResponseDetails logs the duration it took to serve an HTTP response.
-// This method is used to monitor the performance of the server by logging the time elapsed
-// from the start of request handling to the point this method is called. It's particularly useful
-// for identifying slow responses and potential bottlenecks in the request handling process.
-//
-// Parameters:
-//   - startTime: A time.Time value representing the moment request handling began. This is used
-//     to calculate the elapsed time until the current moment when the response is considered served.
-//
-// The method calculates the response time by subtracting the startTime from the current time
-// and logs this duration with a descriptive message using the server's serverLogger. This information
-// can be valuable for performance analysis and optimization efforts.
-func (jx *JinxHttpServer) logResponseDetails(startTime time.Time) {
-	responseTime := time.Since(startTime)
-	jx.serverLogger.Info(fmt.Sprintf("Served response: Duration=%s", responseTime))
-}
-
-// serve404 sends a 404 Not Found response to the client with the content of a specified file.
+// Serve404 sends a 404 Not Found response to the client with the content of a specified file.
 // This function is designed to handle scenarios where a requested resource cannot be found on the server.
 // It attempts to read the content of the specified file (typically a custom 404 error page) and sends it
 // as the response body to provide a more user-friendly error message. If the file cannot be read,
@@ -338,7 +430,7 @@ func (jx *JinxHttpServer) logResponseDetails(startTime time.Time) {
 // Note: This function sets the HTTP status code to 404 Not Found when serving the custom error page.
 // If an error occurs while reading the custom error file, the status code is still set to 404.
 // However, if an error occurs while writing the content to the response, the status code is set to 500 Internal Server Error.
-func (jx *JinxHttpServer) serve404(w http.ResponseWriter, filePath string) {
+func (jx *JinxHttpServer) Serve404(w http.ResponseWriter, filePath string) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		http.Error(w, "404 Not Found", http.StatusNotFound)

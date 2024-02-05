@@ -76,3 +76,16 @@ const START string = "start"
 const STOP string = "stop"
 const RESTART string = "restart"
 const DESTROY string = "destroy"
+
+const INVALID_WEBSITE_DIR = 200 // invalid website directory
+const INVALID_PORT = 201        // invalid port number
+const INVALID_CERT_PATH = 202
+const INVALID_KEY_PATH = 203
+const ERR_CREATE_DIR = 204
+const FETCH_RESOURCE_ERR = 205
+const READ_RESPONSE_ERR = 206
+const OPEN_FILE_ERR = 207
+const WRITE_FILE_ERR = 208
+const ERR_INVALID_ROUTE_TABLE = 209
+const ERR_INVALID_BLACK_LIST = 210
+const ERR_INVALID_SERVER_POOL_CONFIG = 211
