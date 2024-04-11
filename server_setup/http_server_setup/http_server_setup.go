@@ -43,7 +43,6 @@ import (
 // - A types.JinxServer instance, which is a custom server type that encapsulates the configured HTTP server.
 // - A pointer to an error_handler.JinxError if an error occurs during the setup process. If setup is successful, nil is returned.
 func HTTPServerSetup(config types.HttpServerConfig, serverRootDir string) (types.JinxServer, *error_handler.JinxError) {
-
 	webRootDir := config.WebsiteRootDir
 	if webRootDir == "" {
 		webRootDir = string(constant.DEFAULT_WEBSITE_ROOT_DIR)
@@ -61,9 +60,9 @@ func HTTPServerSetup(config types.HttpServerConfig, serverRootDir string) (types
 		return nil, error_handler.NewJinxError(constant.INVALID_PORT, validationErr)
 	}
 
-	ipAddress := net.ParseIP(config.IP)
+	ipAddress := net.IP(config.IP)
 	if ipAddress == nil {
-		log.Printf("%s is an invalid ip address: using loopback address 127.0.0.1", config.IP)
+		log.Printf("%s is an invalid ip address. Defaulting to loopback address 127.0.0.1", config.IP)
 		ipAddress = net.IP(constant.DEFAULT_IP)
 	}
 
@@ -84,14 +83,14 @@ func HTTPServerSetup(config types.HttpServerConfig, serverRootDir string) (types
 	}
 
 	//Create a directory for logs
-	logRoot := filepath.Join(serverRootDir, string(constant.HTTP_SERVER), constant.LOG_ROOT)
+	logRoot := filepath.Join(serverRootDir, constant.LOG_ROOT)
 	if mkLogDirErr := os.MkdirAll(logRoot, 0755); !os.IsExist(mkLogDirErr) && mkLogDirErr != nil {
 		log.Printf("unable to create log directory. make sure you have the right permissions in %s: %v", logRoot, mkLogDirErr)
 		return nil, error_handler.NewJinxError(constant.ERR_CREATE_DIR, mkLogDirErr)
 	}
 
 	//Create a directory to store default website files
-	defaultWebsiteRoot := filepath.Join(serverRootDir, string(constant.HTTP_SERVER), constant.DEFAULT_WEBSITE_ROOT)
+	defaultWebsiteRoot := filepath.Join(serverRootDir, constant.DEFAULT_WEBSITE_ROOT)
 	if mkdirErr := os.MkdirAll(defaultWebsiteRoot, 0755); !os.IsExist(mkdirErr) && mkdirErr != nil {
 		log.Printf("unable to create default website root. make sure you have the right permissions in %s: %v", defaultWebsiteRoot, mkdirErr)
 		return nil, error_handler.NewJinxError(constant.ERR_CREATE_DIR, mkdirErr)

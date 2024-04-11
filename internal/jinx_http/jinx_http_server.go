@@ -152,23 +152,21 @@ func (jx *JinxHttpServer) Start() types.JinxServer {
 		jx.serverLogger.Info(fmt.Sprintf("Successfully shutdown server"))
 	}()
 
-	go func() {
-		if jx.config.CertFile != "" && jx.config.KeyFile != "" {
-			err := s.ListenAndServeTLS(jx.config.CertFile, jx.config.KeyFile)
-			if err != nil && !errors.Is(err, http.ErrServerClosed) {
-				jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
-				log.Fatal(err)
-			}
-			return
-		}
-
-		// Start the server
-		err := s.ListenAndServe()
+	if jx.config.CertFile != "" && jx.config.KeyFile != "" {
+		err := s.ListenAndServeTLS(jx.config.CertFile, jx.config.KeyFile)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
 			log.Fatal(err)
 		}
-	}()
+		return nil
+	}
+
+	// Start the server
+	err := s.ListenAndServe()
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
+		jx.errorLogger.Error(fmt.Sprintf("Failed to start server: %s", err.Error()))
+		log.Fatal(err)
+	}
 
 	return jx
 }

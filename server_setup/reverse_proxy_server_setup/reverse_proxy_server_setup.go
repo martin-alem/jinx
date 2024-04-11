@@ -73,7 +73,7 @@ func ReverseProxyServerSetup(config types.ReverseProxyConfig, serverRootDir stri
 		return nil, error_handler.NewJinxError(constant.INVALID_PORT, validationErr)
 	}
 
-	ipAddress := net.ParseIP(config.IP)
+	ipAddress := net.IP(config.IP)
 	if ipAddress == nil {
 		log.Printf("%s is an invalid ip address: using loopback address 127.0.0.1", config.IP)
 		ipAddress = net.IP(constant.DEFAULT_IP)
